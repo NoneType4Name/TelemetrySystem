@@ -1,0 +1,14 @@
+*/
+!Core/
+!Core/**
+mx.scratch
+.settings
+CMakePresets.json
+CMakeLists.txt
+.clangd
+.vscode
+*.s
+*.ld
+.*
+!.gitignore
+!.clang-format
