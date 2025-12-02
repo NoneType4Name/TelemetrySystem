@@ -140,9 +140,11 @@ void HAL_DCMI_MspInit(DCMI_HandleTypeDef* hdcmi)
     GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+    HAL_I2CEx_EnableFastModePlus(SYSCFG_PMCR_I2C_PB7_FMP);
+
     /* DCMI DMA Init */
     /* DCMI Init */
-    hdma_dcmi.Instance = DMA1_Stream1;
+    hdma_dcmi.Instance = DMA2_Stream1;
     hdma_dcmi.Init.Request = DMA_REQUEST_DCMI;
     hdma_dcmi.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_dcmi.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -162,6 +164,9 @@ void HAL_DCMI_MspInit(DCMI_HandleTypeDef* hdcmi)
 
     __HAL_LINKDMA(hdcmi,DMA_Handle,hdma_dcmi);
 
+    /* DCMI interrupt Init */
+    HAL_NVIC_SetPriority(DCMI_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DCMI_IRQn);
     /* USER CODE BEGIN DCMI_MspInit 1 */
 
     /* USER CODE END DCMI_MspInit 1 */
@@ -210,6 +215,9 @@ void HAL_DCMI_MspDeInit(DCMI_HandleTypeDef* hdcmi)
 
     /* DCMI DMA DeInit */
     HAL_DMA_DeInit(hdcmi->DMA_Handle);
+
+    /* DCMI interrupt DeInit */
+    HAL_NVIC_DisableIRQ(DCMI_IRQn);
     /* USER CODE BEGIN DCMI_MspDeInit 1 */
 
     /* USER CODE END DCMI_MspDeInit 1 */

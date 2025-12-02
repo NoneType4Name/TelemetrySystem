@@ -66,18 +66,16 @@ static void MX_SDMMC1_SD_Init( void );
 static void MX_I2C1_Init( void );
 /* USER CODE BEGIN PFP */
 
-static void SDMMC_SDCard_Test( void );
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-enum imageResolution imgRes        = RES_640X480;
-uint8_t frameBuffer[ RES_640X480 ] = { 0 };
-unsigned short mutex               = 0;
-uint16_t bufferPointer             = 0;
-unsigned short headerFound         = 0;
+uint8_t frameBuffer[ RES_160X120 + 1000 ] = { 0 };
+enum imageResolution imgRes               = RES_160X120;
+unsigned short mutex                      = 0;
+uint16_t bufferPointer                    = 0;
+unsigned short headerFound                = 0;
+// __attribute__( ( section( ".sdram" ) ) ) uint8_t frameBuffer[ RES_640X480 ];
 
 /* USER CODE END 0 */
 
@@ -113,66 +111,90 @@ int main( void )
     /* Initialize all configured peripherals */
     MX_GPIO_Init();
     MX_DMA_Init();
-    // MX_SDMMC1_SD_Init();
-    // MX_FATFS_Init();
-    // MX_DCMI_Init();
-    // MX_I2C1_Init();
+    MX_SDMMC1_SD_Init();
+    MX_FATFS_Init();
+    MX_DCMI_Init();
+    MX_I2C1_Init();
     /* USER CODE BEGIN 2 */
-    // OV2640_Init(&hi2c1, &hdcmi);
-    // HAL_Delay(10);
-    // OV2640_ResolutionOptions(imgRes);
-    // HAL_Delay(100);
-    // SDMMC_SDCard_Test();
+    OV2640_Init( &hi2c1, &hdcmi );
+    HAL_Delay( 10 );
+    OV2640_ResolutionOptions( imgRes );
+    HAL_Delay( 100 );
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
+    memset( frameBuffer, 0, sizeof frameBuffer );
+    OV2640_CaptureSnapshot( ( uint32_t ) frameBuffer, imgRes );
+
     while ( 1 )
     {
-        /*if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13))
+        if ( headerFound == 0 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD8 )
         {
-                memset(frameBuffer, 0, sizeof(frameBuffer));
-                OV2640_CaptureSnapshot((uint32_t) frameBuffer, imgRes);
-                while (1) {
-                                if (headerFound == 0 && frameBuffer[bufferPointer] == 0xFF
-                                                && frameBuffer[bufferPointer + 1] == 0xD8) {
-                                        headerFound = 1;
-                                }
-                                if (headerFound == 1 && frameBuffer[bufferPointer] == 0xFF
-                                                && frameBuffer[bufferPointer + 1] == 0xD9) {
-                                        bufferPointer = bufferPointer + 2;
-                                        headerFound = 0;
-                                        break;
-                                }
+            headerFound = 1;
+        }
+        if ( headerFound == 1 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD9 )
+        {
+            bufferPointer = bufferPointer + 2;
+            headerFound   = 0;
+            break;
+        }
 
-                                if (bufferPointer >= 65535) {
-                                        break;
-                                }
-                                bufferPointer++;
-                        }
-                        FATFS FatFs;
-                        FIL Fil;
-                        FRESULT FR_Status;
-                        UINT WWC; // Read/Write Word Counter
-                                                        char RW_Buffer[200];
-                        FATFS *FS_Ptr;
-                        do
-                        {
-                                FR_Status = f_mount(&FatFs, SDPath, 1);
-                                if (FR_Status != FR_OK)
-                                {
-                                        break;
-                                }
-                                FR_Status = f_open(&Fil, "photo.jpeg", FA_WRITE | FA_CREATE_ALWAYS);
-                                if(FR_Status != FR_OK)
-                                {
-                                        break;
-                                }
-                                strcpy(RW_Buffer, "Hello! From STM32 To SD Card Over SDMMC, Using f_write()\r\n");
-                                f_write(&Fil, RW_Buffer, strlen(RW_Buffer), &WWC);
-                        }
-                        while(0);*/
-        //}
+        if ( bufferPointer >= 65535 )
+        {
+            break;
+        }
+        bufferPointer++;
+    }
+    FATFS FatFs;
+    FIL Fil;
+    FRESULT FR_Status;
+    // FATFS *FS_Ptr;
+    // DWORD FreeClusters;
+    // UINT RWC, WWC; // Read/Write Word Counter
+    // unsigned long TotalSize, FreeSpace;
+    // char RW_Buffer[ 200 ];
+    do
+    {
+        //------------------[ Mount The SD Card ]--------------------
+        FR_Status = f_mount( &FatFs, SDPath, 1 );
+        if ( FR_Status != FR_OK )
+        {
+            break;
+        }
+        //------------------[ Get & Print The SD Card Size & Free Space ]--------------------
+        // f_getfree( "", &FreeClusters, &FS_Ptr );
+        // TotalSize = ( uint32_t ) ( ( FS_Ptr->n_fatent - 2 ) * FS_Ptr->csize * 0.5 );
+        // FreeSpace = ( uint32_t ) ( FreeClusters * FS_Ptr->csize * 0.5 );
+        //------------------[ Open A Text File For Write & Write Data ]--------------------
+        // Open the file
+        FR_Status = f_open( &Fil, "photo.jpg", FA_WRITE | FA_CREATE_ALWAYS );
+        if ( FR_Status != FR_OK )
+        {
+            break;
+        }
+        // (1) Write Data To The Text File [ Using f_puts() Function ]
+        // (2) Write Data To The Text File [ Using f_write() Function ]
+        // strcpy( RW_Buffer, "Helo! From STM32 To SD Card Over SDMMC, Using f_write()\r\n" );
+        f_write( &Fil, frameBuffer, bufferPointer, 0 );
+        // Close The File
+        f_close( &Fil );
+        //------------------[ Open A Text File For Read & Read Its Data ]--------------------
+        // Open The File
+        //------------------[ Delete The Text File ]--------------------
+        // Delete The File
+        /*
+        FR_Status = f_unlink(MyTextFile.txt);
+        if (FR_Status != FR_OK){
+            printf("Error! While Deleting The (MyTextFile.txt) File.. \r\n");
+        }
+        */
+    } while ( 0 );
+    //------------------[ Test Complete! Unmount The SD Card ]--------------------
+    FR_Status     = f_mount( NULL, "", 0 );
+    bufferPointer = 0;
+    while ( 1 )
+    {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -210,12 +232,12 @@ void SystemClock_Config( void )
     RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
     RCC_OscInitStruct.PLL.PLLState        = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource       = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLM            = 2;
-    RCC_OscInitStruct.PLL.PLLN            = 20;
+    RCC_OscInitStruct.PLL.PLLM            = 5;
+    RCC_OscInitStruct.PLL.PLLN            = 40;
     RCC_OscInitStruct.PLL.PLLP            = 2;
     RCC_OscInitStruct.PLL.PLLQ            = 4;
     RCC_OscInitStruct.PLL.PLLR            = 2;
-    RCC_OscInitStruct.PLL.PLLRGE          = RCC_PLL1VCIRANGE_3;
+    RCC_OscInitStruct.PLL.PLLRGE          = RCC_PLL1VCIRANGE_2;
     RCC_OscInitStruct.PLL.PLLVCOSEL       = RCC_PLL1VCOWIDE;
     RCC_OscInitStruct.PLL.PLLFRACN        = 0;
     if ( HAL_RCC_OscConfig( &RCC_OscInitStruct ) != HAL_OK )
@@ -262,7 +284,7 @@ void MX_DCMI_Init( void )
     hdcmi.Init.HSPolarity       = DCMI_HSPOLARITY_LOW;
     hdcmi.Init.CaptureRate      = DCMI_CR_ALL_FRAME;
     hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
-    hdcmi.Init.JPEGMode         = DCMI_JPEG_ENABLE;
+    hdcmi.Init.JPEGMode         = DCMI_JPEG_DISABLE;
     hdcmi.Init.ByteSelectMode   = DCMI_BSM_ALL;
     hdcmi.Init.ByteSelectStart  = DCMI_OEBS_ODD;
     hdcmi.Init.LineSelectMode   = DCMI_LSM_ALL;
@@ -341,7 +363,7 @@ static void MX_SDMMC1_SD_Init( void )
     hsd1.Init.ClockPowerSave      = SDMMC_CLOCK_POWER_SAVE_DISABLE;
     hsd1.Init.BusWide             = SDMMC_BUS_WIDE_4B;
     hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
-    hsd1.Init.ClockDiv            = 2;
+    hsd1.Init.ClockDiv            = 4;
     if ( HAL_SD_Init( &hsd1 ) != HAL_OK )
     {
         Error_Handler();
@@ -357,12 +379,12 @@ static void MX_SDMMC1_SD_Init( void )
 static void MX_DMA_Init( void )
 {
     /* DMA controller clock enable */
-    __HAL_RCC_DMA1_CLK_ENABLE();
+    __HAL_RCC_DMA2_CLK_ENABLE();
 
     /* DMA interrupt init */
-    /* DMA1_Stream1_IRQn interrupt configuration */
-    HAL_NVIC_SetPriority( DMA1_Stream1_IRQn, 0, 0 );
-    HAL_NVIC_EnableIRQ( DMA1_Stream1_IRQn );
+    /* DMA2_Stream1_IRQn interrupt configuration */
+    HAL_NVIC_SetPriority( DMA2_Stream1_IRQn, 0, 0 );
+    HAL_NVIC_EnableIRQ( DMA2_Stream1_IRQn );
 }
 
 /**
@@ -425,10 +447,6 @@ static void MX_GPIO_Init( void )
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init( SDMMC1_SW_GPIO_Port, &GPIO_InitStruct );
 
-    /* EXTI interrupt init*/
-    HAL_NVIC_SetPriority( SDMMC1_SW_EXTI_IRQn, 0, 0 );
-    HAL_NVIC_EnableIRQ( SDMMC1_SW_EXTI_IRQn );
-
     /* USER CODE BEGIN MX_GPIO_Init_2 */
 
     /* USER CODE END MX_GPIO_Init_2 */
@@ -454,55 +472,55 @@ void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
     }
 }
 
-static void SDMMC_SDCard_Test( void )
-{
-    FATFS FatFs;
-    FIL Fil;
-    FRESULT FR_Status;
-    FATFS *FS_Ptr;
-    DWORD FreeClusters;
-    UINT RWC, WWC; // Read/Write Word Counter
-    unsigned long TotalSize, FreeSpace;
-    char RW_Buffer[ 200 ];
-    do
-    {
-        //------------------[ Mount The SD Card ]--------------------
-        FR_Status = f_mount( &FatFs, SDPath, 1 );
-        if ( FR_Status != FR_OK )
-        {
-            break;
-        }
-        //------------------[ Get & Print The SD Card Size & Free Space ]--------------------
-        f_getfree( "", &FreeClusters, &FS_Ptr );
-        TotalSize = ( uint32_t ) ( ( FS_Ptr->n_fatent - 2 ) * FS_Ptr->csize * 0.5 );
-        FreeSpace = ( uint32_t ) ( FreeClusters * FS_Ptr->csize * 0.5 );
-        //------------------[ Open A Text File For Write & Write Data ]--------------------
-        // Open the file
-        FR_Status = f_open( &Fil, "MyTextFile.txt", FA_WRITE | FA_READ | FA_CREATE_ALWAYS );
-        if ( FR_Status != FR_OK )
-        {
-            break;
-        }
-        // (1) Write Data To The Text File [ Using f_puts() Function ]
-        // (2) Write Data To The Text File [ Using f_write() Function ]
-        strcpy( RW_Buffer, "Helo! From STM32 To SD Card Over SDMMC, Using f_write()\r\n" );
-        f_write( &Fil, RW_Buffer, strlen( RW_Buffer ), &WWC );
-        // Close The File
-        f_close( &Fil );
-        //------------------[ Open A Text File For Read & Read Its Data ]--------------------
-        // Open The File
-        //------------------[ Delete The Text File ]--------------------
-        // Delete The File
-        /*
-        FR_Status = f_unlink(MyTextFile.txt);
-        if (FR_Status != FR_OK){
-            printf("Error! While Deleting The (MyTextFile.txt) File.. \r\n");
-        }
-        */
-    } while ( 0 );
-    //------------------[ Test Complete! Unmount The SD Card ]--------------------
-    FR_Status = f_mount( NULL, "", 0 );
-}
+// static void SDMMC_SDCard_Test( void )
+// {
+//     FATFS FatFs;
+//     FIL Fil;
+//     FRESULT FR_Status;
+//     FATFS *FS_Ptr;
+//     DWORD FreeClusters;
+//     UINT RWC, WWC; // Read/Write Word Counter
+//     unsigned long TotalSize, FreeSpace;
+//     char RW_Buffer[ 200 ];
+//     do
+//     {
+//         //------------------[ Mount The SD Card ]--------------------
+//         FR_Status = f_mount( &FatFs, SDPath, 1 );
+//         if ( FR_Status != FR_OK )
+//         {
+//             break;
+//         }
+//         //------------------[ Get & Print The SD Card Size & Free Space ]--------------------
+//         f_getfree( "", &FreeClusters, &FS_Ptr );
+//         TotalSize = ( uint32_t ) ( ( FS_Ptr->n_fatent - 2 ) * FS_Ptr->csize * 0.5 );
+//         FreeSpace = ( uint32_t ) ( FreeClusters * FS_Ptr->csize * 0.5 );
+//         //------------------[ Open A Text File For Write & Write Data ]--------------------
+//         // Open the file
+//         FR_Status = f_open( &Fil, "MyTextFile.txt", FA_WRITE | FA_READ | FA_CREATE_ALWAYS );
+//         if ( FR_Status != FR_OK )
+//         {
+//             break;
+//         }
+//         // (1) Write Data To The Text File [ Using f_puts() Function ]
+//         // (2) Write Data To The Text File [ Using f_write() Function ]
+//         strcpy( RW_Buffer, "Helo! From STM32 To SD Card Over SDMMC, Using f_write()\r\n" );
+//         f_write( &Fil, RW_Buffer, strlen( RW_Buffer ), &WWC );
+//         // Close The File
+//         f_close( &Fil );
+//         //------------------[ Open A Text File For Read & Read Its Data ]--------------------
+//         // Open The File
+//         //------------------[ Delete The Text File ]--------------------
+//         // Delete The File
+//         /*
+//         FR_Status = f_unlink(MyTextFile.txt);
+//         if (FR_Status != FR_OK){
+//             printf("Error! While Deleting The (MyTextFile.txt) File.. \r\n");
+//         }
+//         */
+//     } while ( 0 );
+//     //------------------[ Test Complete! Unmount The SD Card ]--------------------
+//     FR_Status = f_mount( NULL, "", 0 );
+// }
 
 /* USER CODE END 4 */
 

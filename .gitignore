@@ -4,7 +4,7 @@
 mx.scratch
 .settings
 CMakePresets.json
-CMakeLists.txt
+!CMakeLists.txt
 .clangd
 .vscode
 *.s

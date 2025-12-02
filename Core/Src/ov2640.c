@@ -1,617 +1,1499 @@
 /**
- * ov2640.c
+ * Copyright (c) 2015 - present LibDriver All rights reserved
  *
- * 	Created on: 23.02.2019
- *	Modified on:  23.02.2021
+ * The MIT License (MIT)
  *
- *	Copyright 2021 SimpleMethod
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- *Permission is hereby granted, free of charge, to any person obtaining a copy of
- *this software and associated documentation files (the "Software"), to deal in
- *the Software without restriction, including without limitation the rights to
- *use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
- *of the Software, and to permit persons to whom the Software is furnished to do
- *so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
  *
- *The above copyright notice and this permission notice shall be included in all
- *copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
- *THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- *THE SOFTWARE.
- ******************************************************************************
+ * @file      driver_ov2640_basic.c
+ * @brief     driver ov2640 basic source file
+ * @version   1.0.0
+ * @author    Shifeng Li
+ * @date      2023-11-30
+ *
+ * <h3>history</h3>
+ * <table>
+ * <tr><th>Date        <th>Version  <th>Author      <th>Description
+ * <tr><td>2023/11/30  <td>1.0      <td>Shifeng Li  <td>first upload
+ * </table>
  */
 
-#include "ov2640.h"
+#include "driver_ov2640_basic.h"
+
+static ov2640_handle_t gs_handle; /**< ov2640 handle */
 
 /**
- * Code debugging option
+ * @brief  basic example init
+ * @return status code
+ *         - 0 success
+ *         - 1 init failed
+ * @note   none
  */
-//#define DEBUG
+uint8_t ov2640_basic_init( void )
+{
+    uint8_t res;
 
-I2C_HandleTypeDef *phi2c;
-DCMI_HandleTypeDef *phdcmi;
+    /* link interface function */
+    DRIVER_OV2640_LINK_INIT( &gs_handle, ov2640_handle_t );
+    DRIVER_OV2640_LINK_SCCB_INIT( &gs_handle, ov2640_interface_sccb_init );
+    DRIVER_OV2640_LINK_SCCB_DEINIT( &gs_handle, ov2640_interface_sccb_deinit );
+    DRIVER_OV2640_LINK_SCCB_READ( &gs_handle, ov2640_interface_sccb_read );
+    DRIVER_OV2640_LINK_SCCB_WRITE( &gs_handle, ov2640_interface_sccb_write );
+    DRIVER_OV2640_LINK_POWER_DOWN_INIT( &gs_handle, ov2640_interface_power_down_init );
+    DRIVER_OV2640_LINK_POWER_DOWN_DEINIT( &gs_handle, ov2640_interface_power_down_deinit );
+    DRIVER_OV2640_LINK_POWER_DOWN_WRITE( &gs_handle, ov2640_interface_power_down_write );
+    DRIVER_OV2640_LINK_RESET_INIT( &gs_handle, ov2640_interface_reset_init );
+    DRIVER_OV2640_LINK_RESET_DEINIT( &gs_handle, ov2640_interface_reset_deinit );
+    DRIVER_OV2640_LINK_RESET_WRITE( &gs_handle, ov2640_interface_reset_write );
+    DRIVER_OV2640_LINK_DELAY_MS( &gs_handle, ov2640_interface_delay_ms );
+    DRIVER_OV2640_LINK_DEBUG_PRINT( &gs_handle, ov2640_interface_debug_print );
 
-const unsigned char OV2640_JPEG_INIT[][2] = { { 0xff, 0x00 }, { 0x2c, 0xff }, {
-		0x2e, 0xdf }, { 0xff, 0x01 }, { 0x3c, 0x32 }, { 0x11, 0x00 }, { 0x09,
-		0x02 }, { 0x04, 0x28 }, { 0x13, 0xe5 }, { 0x14, 0x48 }, { 0x2c, 0x0c },
-		{ 0x33, 0x78 }, { 0x3a, 0x33 }, { 0x3b, 0xfB }, { 0x3e, 0x00 }, { 0x43,
-				0x11 }, { 0x16, 0x10 }, { 0x39, 0x92 }, { 0x35, 0xda }, { 0x22,
-				0x1a }, { 0x37, 0xc3 }, { 0x23, 0x00 }, { 0x34, 0xc0 }, { 0x36,
-				0x1a }, { 0x06, 0x88 }, { 0x07, 0xc0 }, { 0x0d, 0x87 }, { 0x0e,
-				0x41 }, { 0x4c, 0x00 }, { 0x48, 0x00 }, { 0x5B, 0x00 }, { 0x42,
-				0x03 }, { 0x4a, 0x81 }, { 0x21, 0x99 }, { 0x24, 0x40 }, { 0x25,
-				0x38 }, { 0x26, 0x82 }, { 0x5c, 0x00 }, { 0x63, 0x00 }, { 0x61,
-				0x70 }, { 0x62, 0x80 }, { 0x7c, 0x05 }, { 0x20, 0x80 }, { 0x28,
-				0x30 }, { 0x6c, 0x00 }, { 0x6d, 0x80 }, { 0x6e, 0x00 }, { 0x70,
-				0x02 }, { 0x71, 0x94 }, { 0x73, 0xc1 }, { 0x12, 0x40 }, { 0x17,
-				0x11 }, { 0x18, 0x43 }, { 0x19, 0x00 }, { 0x1a, 0x4b }, { 0x32,
-				0x09 }, { 0x37, 0xc0 }, { 0x4f, 0x60 }, { 0x50, 0xa8 }, { 0x6d,
-				0x00 }, { 0x3d, 0x38 }, { 0x46, 0x3f }, { 0x4f, 0x60 }, { 0x0c,
-				0x3c }, { 0xff, 0x00 }, { 0xe5, 0x7f }, { 0xf9, 0xc0 }, { 0x41,
-				0x24 }, { 0xe0, 0x14 }, { 0x76, 0xff }, { 0x33, 0xa0 }, { 0x42,
-				0x20 }, { 0x43, 0x18 }, { 0x4c, 0x00 }, { 0x87, 0xd5 }, { 0x88,
-				0x3f }, { 0xd7, 0x03 }, { 0xd9, 0x10 }, { 0xd3, 0x82 }, { 0xc8,
-				0x08 }, { 0xc9, 0x80 }, { 0x7c, 0x00 }, { 0x7d, 0x00 }, { 0x7c,
-				0x03 }, { 0x7d, 0x48 }, { 0x7d, 0x48 }, { 0x7c, 0x08 }, { 0x7d,
-				0x20 }, { 0x7d, 0x10 }, { 0x7d, 0x0e }, { 0x90, 0x00 }, { 0x91,
-				0x0e }, { 0x91, 0x1a }, { 0x91, 0x31 }, { 0x91, 0x5a }, { 0x91,
-				0x69 }, { 0x91, 0x75 }, { 0x91, 0x7e }, { 0x91, 0x88 }, { 0x91,
-				0x8f }, { 0x91, 0x96 }, { 0x91, 0xa3 }, { 0x91, 0xaf }, { 0x91,
-				0xc4 }, { 0x91, 0xd7 }, { 0x91, 0xe8 }, { 0x91, 0x20 }, { 0x92,
-				0x00 }, { 0x93, 0x06 }, { 0x93, 0xe3 }, { 0x93, 0x05 }, { 0x93,
-				0x05 }, { 0x93, 0x00 }, { 0x93, 0x04 }, { 0x93, 0x00 }, { 0x93,
-				0x00 }, { 0x93, 0x00 }, { 0x93, 0x00 }, { 0x93, 0x00 }, { 0x93,
-				0x00 }, { 0x93, 0x00 }, { 0x96, 0x00 }, { 0x97, 0x08 }, { 0x97,
-				0x19 }, { 0x97, 0x02 }, { 0x97, 0x0c }, { 0x97, 0x24 }, { 0x97,
-				0x30 }, { 0x97, 0x28 }, { 0x97, 0x26 }, { 0x97, 0x02 }, { 0x97,
-				0x98 }, { 0x97, 0x80 }, { 0x97, 0x00 }, { 0x97, 0x00 }, { 0xc3,
-				0xed }, { 0xa4, 0x00 }, { 0xa8, 0x00 }, { 0xc5, 0x11 }, { 0xc6,
-				0x51 }, { 0xbf, 0x80 }, { 0xc7, 0x10 }, { 0xb6, 0x66 }, { 0xb8,
-				0xA5 }, { 0xb7, 0x64 }, { 0xb9, 0x7C }, { 0xb3, 0xaf }, { 0xb4,
-				0x97 }, { 0xb5, 0xFF }, { 0xb0, 0xC5 }, { 0xb1, 0x94 }, { 0xb2,
-				0x0f }, { 0xc4, 0x5c }, { 0xc0, 0x64 }, { 0xc1, 0x4B }, { 0x8c,
-				0x00 }, { 0x86, 0x3D }, { 0x50, 0x00 }, { 0x51, 0xC8 }, { 0x52,
-				0x96 }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x00 }, { 0x5a,
-				0xC8 }, { 0x5b, 0x96 }, { 0x5c, 0x00 }, { 0xd3, 0x00 }, { 0xc3,
-				0xed }, { 0x7f, 0x00 }, { 0xda, 0x00 }, { 0xe5, 0x1f }, { 0xe1,
-				0x67 }, { 0xe0, 0x00 }, { 0xdd, 0x7f }, { 0x05, 0x00 }, { 0x12,
-				0x40 }, { 0xd3, 0x04 }, { 0xc0, 0x16 }, { 0xC1, 0x12 }, { 0x8c,
-				0x00 }, { 0x86, 0x3d }, { 0x50, 0x00 }, { 0x51, 0x2C }, { 0x52,
-				0x24 }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x00 }, { 0x5A,
-				0x2c }, { 0x5b, 0x24 }, { 0x5c, 0x00 }, { 0xff, 0xff }, };
+    /* ov2640 init */
+    res = ov2640_init( &gs_handle );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: init failed.\n" );
 
-const unsigned char OV2640_YUV422[][2] = { { 0xFF, 0x00 }, { 0x05, 0x00 }, {
-		0xDA, 0x10 }, { 0xD7, 0x03 }, { 0xDF, 0x00 }, { 0x33, 0x80 }, { 0x3C,
-		0x40 }, { 0xe1, 0x77 }, { 0x00, 0x00 }, { 0xff, 0xff }, };
+        return 1;
+    }
 
-const unsigned char OV2640_JPEG[][2] = { { 0xe0, 0x14 }, { 0xe1, 0x77 }, { 0xe5,
-		0x1f }, { 0xd7, 0x03 }, { 0xda, 0x10 }, { 0xe0, 0x00 }, { 0xFF, 0x01 },
-		{ 0x04, 0x08 }, { 0xff, 0xff }, };
+    /* table init */
+    res = ov2640_table_init( &gs_handle );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: table init failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_160x120_JPEG[][2] = { { 0xFF, 0x01 }, { 0x12, 0x40 },
-		{ 0x17, 0x11 }, { 0x18, 0x43 }, { 0x19, 0x00 }, { 0x1a, 0x4b }, { 0x32,
-				0x09 }, { 0x4f, 0xca }, { 0x50, 0xa8 }, { 0x5a, 0x23 }, { 0x6d,
-				0x00 }, { 0x39, 0x12 }, { 0x35, 0xda }, { 0x22, 0x1a }, { 0x37,
-				0xc3 }, { 0x23, 0x00 }, { 0x34, 0xc0 }, { 0x36, 0x1a }, { 0x06,
-				0x88 }, { 0x07, 0xc0 }, { 0x0d, 0x87 }, { 0x0e, 0x41 }, { 0x4c,
-				0x00 }, { 0xFF, 0x00 }, { 0xe0, 0x04 }, { 0xc0, 0x64 }, { 0xc1,
-				0x4b }, { 0x86, 0x35 }, { 0x50, 0x92 }, { 0x51, 0xc8 }, { 0x52,
-				0x96 }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x00 }, { 0x57,
-				0x00 }, { 0x5a, 0x2c }, { 0x5b, 0x24 }, { 0x5c, 0x00 }, { 0xe0,
-				0x00 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_320x240_JPEG[][2] = { { 0xff, 0x01 }, { 0x12, 0x40 },
-		{ 0x17, 0x11 }, { 0x18, 0x43 }, { 0x19, 0x00 }, { 0x1a, 0x4b }, { 0x32,
-				0x09 }, { 0x4f, 0xca }, { 0x50, 0xa8 }, { 0x5a, 0x23 }, { 0x6d,
-				0x00 }, { 0x39, 0x12 }, { 0x35, 0xda }, { 0x22, 0x1a }, { 0x37,
-				0xc3 }, { 0x23, 0x00 }, { 0x34, 0xc0 }, { 0x36, 0x1a }, { 0x06,
-				0x88 }, { 0x07, 0xc0 }, { 0x0d, 0x87 }, { 0x0e, 0x41 }, { 0x4c,
-				0x00 }, { 0xff, 0x00 }, { 0xe0, 0x04 }, { 0xc0, 0x64 }, { 0xc1,
-				0x4b }, { 0x86, 0x35 }, { 0x50, 0x89 }, { 0x51, 0xc8 }, { 0x52,
-				0x96 }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x00 }, { 0x57,
-				0x00 }, { 0x5a, 0x50 }, { 0x5b, 0x3c }, { 0x5c, 0x00 }, { 0xe0,
-				0x00 }, { 0xff, 0xff }, };
+    /* set default clock rate double */
+    res = ov2640_set_clock_rate_double( &gs_handle, OV2640_BASIC_DEFAULT_CLOCK_RATE_DOUBLE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set clock rate double failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_640x480_JPEG[][2] = { { 0xff, 0x01 }, { 0x11, 0x01 },
-		{ 0x12, 0x00 }, { 0x17, 0x11 }, { 0x18, 0x75 }, { 0x32, 0x36 }, { 0x19,
-				0x01 }, { 0x1a, 0x97 }, { 0x03, 0x0f }, { 0x37, 0x40 }, { 0x4f,
-				0xbb }, { 0x50, 0x9c }, { 0x5a, 0x57 }, { 0x6d, 0x80 }, { 0x3d,
-				0x34 }, { 0x39, 0x02 }, { 0x35, 0x88 }, { 0x22, 0x0a }, { 0x37,
-				0x40 }, { 0x34, 0xa0 }, { 0x06, 0x02 }, { 0x0d, 0xb7 }, { 0x0e,
-				0x01 }, { 0xff, 0x00 }, { 0xe0, 0x04 }, { 0xc0, 0xc8 }, { 0xc1,
-				0x96 }, { 0x86, 0x3d }, { 0x50, 0x89 }, { 0x51, 0x90 }, { 0x52,
-				0x2c }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x88 }, { 0x57,
-				0x00 }, { 0x5a, 0xa0 }, { 0x5b, 0x78 }, { 0x5c, 0x00 }, { 0xd3,
-				0x04 }, { 0xe0, 0x00 }, { 0xff, 0xff }, };
+        return 1;
+    }
 
-const unsigned char OV2640_800x600_JPEG[][2] = { { 0xFF, 0x01 }, { 0x11, 0x01 },
-		{ 0x12, 0x00 }, { 0x17, 0x11 }, { 0x18, 0x75 }, { 0x32, 0x36 }, { 0x19,
-				0x01 }, { 0x1a, 0x97 }, { 0x03, 0x0f }, { 0x37, 0x40 }, { 0x4f,
-				0xbb }, { 0x50, 0x9c }, { 0x5a, 0x57 }, { 0x6d, 0x80 }, { 0x3d,
-				0x34 }, { 0x39, 0x02 }, { 0x35, 0x88 }, { 0x22, 0x0a }, { 0x37,
-				0x40 }, { 0x34, 0xa0 }, { 0x06, 0x02 }, { 0x0d, 0xb7 }, { 0x0e,
-				0x01 }, { 0xFF, 0x00 }, { 0xe0, 0x04 }, { 0xc0, 0xc8 }, { 0xc1,
-				0x96 }, { 0x86, 0x35 }, { 0x50, 0x89 }, { 0x51, 0x90 }, { 0x52,
-				0x2c }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55, 0x88 }, { 0x57,
-				0x00 }, { 0x5a, 0xc8 }, { 0x5b, 0x96 }, { 0x5c, 0x00 }, { 0xd3,
-				0x02 }, { 0xe0, 0x00 }, { 0xff, 0xff } };
+    /* set default clock divider */
+    res = ov2640_set_clock_divider( &gs_handle, OV2640_BASIC_DEFAULT_CLOCK_DIVIDER );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set clock divider failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_1024x768_JPEG[][2] = { { 0xFF, 0x01 },
-		{ 0x11, 0x01 }, { 0x12, 0x00 }, { 0x17, 0x11 }, { 0x18, 0x75 }, { 0x32,
-				0x36 }, { 0x19, 0x01 }, { 0x1a, 0x97 }, { 0x03, 0x0f }, { 0x37,
-				0x40 }, { 0x4f, 0xbb }, { 0x50, 0x9c }, { 0x5a, 0x57 }, { 0x6d,
-				0x80 }, { 0x3d, 0x34 }, { 0x39, 0x02 }, { 0x35, 0x88 }, { 0x22,
-				0x0a }, { 0x37, 0x40 }, { 0x34, 0xa0 }, { 0x06, 0x02 }, { 0x0d,
-				0xb7 }, { 0x0e, 0x01 }, { 0xFF, 0x00 }, { 0xc0, 0xC8 }, { 0xc1,
-				0x96 }, { 0x8c, 0x00 }, { 0x86, 0x3D }, { 0x50, 0x00 }, { 0x51,
-				0x90 }, { 0x52, 0x2C }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55,
-				0x88 }, { 0x5a, 0x00 }, { 0x5b, 0xC0 }, { 0x5c, 0x01 }, { 0xd3,
-				0x02 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_1280x960_JPEG[][2] = { { 0xFF, 0x01 },
-		{ 0x11, 0x01 }, { 0x12, 0x00 }, { 0x17, 0x11 }, { 0x18, 0x75 }, { 0x32,
-				0x36 }, { 0x19, 0x01 }, { 0x1a, 0x97 }, { 0x03, 0x0f }, { 0x37,
-				0x40 }, { 0x4f, 0xbb }, { 0x50, 0x9c }, { 0x5a, 0x57 }, { 0x6d,
-				0x80 }, { 0x3d, 0x34 }, { 0x39, 0x02 }, { 0x35, 0x88 }, { 0x22,
-				0x0a }, { 0x37, 0x40 }, { 0x34, 0xa0 }, { 0x06, 0x02 }, { 0x0d,
-				0xb7 }, { 0x0e, 0x01 }, { 0xFF, 0x00 }, { 0xe0, 0x04 }, { 0xc0,
-				0xc8 }, { 0xc1, 0x96 }, { 0x86, 0x3d }, { 0x50, 0x00 }, { 0x51,
-				0x90 }, { 0x52, 0x2c }, { 0x53, 0x00 }, { 0x54, 0x00 }, { 0x55,
-				0x88 }, { 0x57, 0x00 }, { 0x5a, 0x40 }, { 0x5b, 0xf0 }, { 0x5c,
-				0x01 }, { 0xd3, 0x02 }, { 0xe0, 0x00 }, { 0xff, 0xff } };
+    /* set default mode */
+    res = ov2640_set_mode( &gs_handle, OV2640_BASIC_DEFAULT_MODE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set mode failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_CONTRAST2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 }, {
-		0x7d, 0x04 }, { 0x7c, 0x07 }, { 0x7d, 0x20 }, { 0x7d, 0x28 }, { 0x7d,
-		0x0c }, { 0x7d, 0x06 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_CONTRAST1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 }, {
-		0x7d, 0x04 }, { 0x7c, 0x07 }, { 0x7d, 0x20 }, { 0x7d, 0x24 }, { 0x7d,
-		0x16 }, { 0x7d, 0x06 }, { 0xff, 0xff } };
+    /* set default power reset pin remap */
+    res = ov2640_set_power_reset_pin_remap( &gs_handle, OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set power reset pin remap failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_CONTRAST0[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 }, {
-		0x7d, 0x04 }, { 0x7c, 0x07 }, { 0x7d, 0x20 }, { 0x7d, 0x20 }, { 0x7d,
-		0x20 }, { 0x7d, 0x06 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_CONTRAST_1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 }, {
-		0x7d, 0x04 }, { 0x7c, 0x07 }, { 0x7d, 0x20 }, { 0x7d, 0x1c }, { 0x7d,
-		0x2a }, { 0x7d, 0x06 }, { 0xff, 0xff } };
+    /* set default output drive */
+    res = ov2640_set_output_drive( &gs_handle, OV2640_BASIC_DEFAULT_OUTPUT_DRIVE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set output drive failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_CONTRAST_2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 }, {
-		0x7d, 0x04 }, { 0x7c, 0x07 }, { 0x7d, 0x20 }, { 0x7d, 0x18 }, { 0x7d,
-		0x34 }, { 0x7d, 0x06 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SATURATION2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x02 }, { 0x7c, 0x03 }, { 0x7d, 0x68 }, { 0x7d, 0x68 }, { 0xff,
-				0xff } };
+    /* set default horizontal mirror */
+    res = ov2640_set_horizontal_mirror( &gs_handle, OV2640_BASIC_DEFAULT_HORIZONTAL_MIRROR );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set horizontal mirror failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SATURATION1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x02 }, { 0x7c, 0x03 }, { 0x7d, 0x58 }, { 0x7d, 0x68 }, { 0xff,
-				0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SATURATION0[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x02 }, { 0x7c, 0x03 }, { 0x7d, 0x48 }, { 0x7d, 0x48 }, { 0xff,
-				0xff } };
+    /* set default vertical flip */
+    res = ov2640_set_vertical_flip( &gs_handle, OV2640_BASIC_DEFAULT_VERTICAL_FLIP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vertical flip failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SATURATION_1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x02 }, { 0x7c, 0x03 }, { 0x7d, 0x38 }, { 0x7d, 0x38 }, { 0xff,
-				0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SATURATION_2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x02 }, { 0x7c, 0x03 }, { 0x7d, 0x28 }, { 0x7d, 0x28 }, { 0xff,
-				0xff } };
+    /* set default band filter */
+    res = ov2640_set_band_filter( &gs_handle, OV2640_BASIC_DEFAULT_BAND_FILTER );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set band filter failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_BRIGHTNESS2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x04 }, { 0x7c, 0x09 }, { 0x7d, 0x40 }, { 0x7d, 0x00 }, { 0xff,
-				0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_BRIGHTNESS1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x04 }, { 0x7c, 0x09 }, { 0x7d, 0x30 }, { 0x7d, 0x00 }, { 0xff,
-				0xff } };
+    /* set default agc control */
+    res = ov2640_set_agc_control( &gs_handle, OV2640_BASIC_DEFAULT_AGC_CONTROL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set agc control failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_BRIGHTNESS0[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x04 }, { 0x7c, 0x09 }, { 0x7d, 0x20 }, { 0x7d, 0x00 }, { 0xff,
-				0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_BRIGHTNESS_1[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x04 }, { 0x7c, 0x09 }, { 0x7d, 0x10 }, { 0x7d, 0x00 }, { 0xff,
-				0xff } };
+    /* set default exposure control */
+    res = ov2640_set_exposure_control( &gs_handle, OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set exposure control failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_BRIGHTNESS_2[][2] = { { 0xff, 0x00 }, { 0x7c, 0x00 },
-		{ 0x7d, 0x04 }, { 0x7c, 0x09 }, { 0x7d, 0x00 }, { 0x7d, 0x00 }, { 0xff,
-				0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SPECIAL_EFFECTS_NORMAL[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x00 }, { 0x7c, 0x05 }, { 0x7d, 0x80 }, { 0x7d,
-		0x80 }, { 0xff, 0xff } };
+    /* set default agc gain ceiling */
+    res = ov2640_set_agc_gain_ceiling( &gs_handle, OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set agc gain ceiling failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SPECIAL_EFFECTS_ANTIQUE[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x18 }, { 0x7c, 0x05 }, { 0x7d, 0x40 }, { 0x7d,
-		0xa6 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SPECIAL_EFFECTS_BLACK_NEGATIVE[][2] = {
-		{ 0xff, 0x00 }, { 0x7c, 0x00 }, { 0x7d, 0x58 }, { 0x7c, 0x05 }, { 0x7d,
-				0x80 }, { 0x7d, 0x80 }, { 0xff, 0xff } };
+    /* set default zoom window horizontal start point */
+    res = ov2640_set_zoom_window_horizontal_start_point( &gs_handle, OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set zoom window horizontal start point failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SPECIAL_EFFECTS_BLUISH[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x18 }, { 0x7c, 0x05 }, { 0x7d, 0xa0 }, { 0x7d,
-		0x40 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SPECIAL_EFFECTS_BLACK[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x18 }, { 0x7c, 0x05 }, { 0x7d, 0x80 }, { 0x7d,
-		0x80 }, { 0xff, 0xff } };
+    /* set default clock output power down pin status */
+    res = ov2640_set_clock_output_power_down_pin_status( &gs_handle, OV2640_BASIC_DEFAULT_PIN_STATUS );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set clock output power down pin status failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SPECIAL_EFFECTS_NEGATIVE[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x40 }, { 0x7c, 0x05 }, { 0x7d, 0x80 }, { 0x7d,
-		0x80 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_SPECIAL_EFFECTS_GREENISH[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x18 }, { 0x7c, 0x05 }, { 0x7d, 0x40 }, { 0x7d,
-		0x40 }, { 0xff, 0xff } };
+    /* set default zoom mode vertical window start point */
+    res = ov2640_set_zoom_mode_vertical_window_start_point( &gs_handle, OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set zoom mode vertical window start point failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_SPECIAL_EFFECTS_REDDISH[][2] = { { 0xff, 0x00 }, {
-		0x7c, 0x00 }, { 0x7d, 0x18 }, { 0x7c, 0x05 }, { 0x7d, 0x40 }, { 0x7d,
-		0xc0 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_LIGHT_MODE_AUTO[][2] = { { 0xff, 0x00 },
-		{ 0xc7, 0x00 }, { 0xff, 0xff } };
+    /* set default luminance signal high range */
+    res = ov2640_set_luminance_signal_high_range( &gs_handle, OV2640_BASIC_DEFAULT_LUMINANCE_HIGH );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set luminance signal high range failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_LIGHT_MODE_SUNNY[][2] = { { 0xff, 0x00 }, { 0xc7,
-		0x40 }, { 0xcc, 0x5e }, { 0xcd, 0x41 }, { 0xce, 0x54 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_LIGHT_MODE_CLOUDY[][2] = { { 0xff, 0x00 }, { 0xc7,
-		0x40 }, { 0xcc, 0x65 }, { 0xcd, 0x41 }, { 0xce, 0x4f }, { 0xff, 0xff } };
+    /* set default luminance signal low range */
+    res = ov2640_set_luminance_signal_low_range( &gs_handle, OV2640_BASIC_DEFAULT_LUMINANCE_LOW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set luminance signal low range failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-const unsigned char OV2640_LIGHT_MODE_OFFICE[][2] = { { 0xff, 0x00 }, { 0xc7,
-		0x40 }, { 0xcc, 0x52 }, { 0xcd, 0x41 }, { 0xce, 0x66 }, { 0xff, 0xff } };
+        return 1;
+    }
 
-const unsigned char OV2640_LIGHT_MODE_HOME[][2] = { { 0xff, 0x00 },
-		{ 0xc7, 0x40 }, { 0xcc, 0x42 }, { 0xcd, 0x3f }, { 0xce, 0x71 }, { 0xff,
-				0xff } };
+    /* set default fast mode large step range */
+    res = ov2640_set_fast_mode_large_step_range( &gs_handle, OV2640_BASIC_DEFAULT_FAST_MODE_HIGH, OV2640_BASIC_DEFAULT_FAST_MODE_LOW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set fast mode large step range failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-/**
- * Camera initialization.
- * @param p_hi2c Pointer to I2C interface.
- * @param p_hdcmi Pointer to DCMI interface.
- */
-void OV2640_Init(I2C_HandleTypeDef *p_hi2c, DCMI_HandleTypeDef *p_hdcmi) {
-	phi2c = p_hi2c;
-	phdcmi = p_hdcmi;
+        return 1;
+    }
 
-	// Software reset: reset all registers to default values
-	SCCB_Write(0xff, 0x01);
-	SCCB_Write(0x12, 0x80);
-	HAL_Delay(100);
+    /* set default frame length adjustment */
+    res = ov2640_set_frame_length_adjustment( &gs_handle, OV2640_BASIC_DEFAULT_FRAME_LENGTH_ADJ );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set frame length adjustment failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
 
-#ifdef DEBUG
-	uint8_t pid;
-	uint8_t ver;
-	SCCB_Read(0x0a, &pid);  // pid value is 0x26
-	SCCB_Read(0x0b, &ver);  // ver value is 0x42
-	my_printf("PID: 0x%x, VER: 0x%x\n", pid, ver);
-#endif
+        return 1;
+    }
 
-	// Stop DCMI clear buffer
-	OV2640_StopDCMI();
+    /* set default band */
+    res = ov2640_set_band( &gs_handle, OV2640_BASIC_DEFAULT_BAND );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set band failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default auto band */
+    res = ov2640_set_auto_band( &gs_handle, OV2640_BASIC_DEFAULT_AUTO_BAND );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set auto band failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default live video after snapshot */
+    res = ov2640_set_live_video_after_snapshot( &gs_handle, OV2640_BASIC_DEFAULT_SNAPSHOT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set live video after snapshot failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default histogram algorithm low level */
+    res = ov2640_set_histogram_algorithm_low_level( &gs_handle, OV2640_BASIC_DEFAULT_HISTO_LOW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set histogram algorithm low level failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default histogram algorithm high level */
+    res = ov2640_set_histogram_algorithm_high_level( &gs_handle, OV2640_BASIC_DEFAULT_HISTO_HIGH );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set histogram algorithm high level failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default 50hz banding aec */
+    res = ov2640_set_50hz_banding_aec( &gs_handle, OV2640_BASIC_DEFAULT_BD50_AEC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set 50hz banding aec failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default 60hz banding aec */
+    res = ov2640_set_60hz_banding_aec( &gs_handle, OV2640_BASIC_DEFAULT_BD60_AEC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set 60hz banding aec failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default resolution */
+    res = ov2640_set_resolution( &gs_handle, OV2640_BASIC_DEFAULT_RESOLUTION );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set resolution failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default zoom */
+    res = ov2640_set_zoom( &gs_handle, OV2640_BASIC_DEFAULT_ZOOM );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set zoom failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default color bar test */
+    res = ov2640_set_color_bar_test( &gs_handle, OV2640_BASIC_DEFAULT_COLOR_BAR_TEST );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set color bar test failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default pclk */
+    res = ov2640_set_pclk( &gs_handle, OV2640_BASIC_DEFAULT_PCLK );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set pclk failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default horizontal window start */
+    res = ov2640_set_horizontal_window_start( &gs_handle, OV2640_BASIC_DEFAULT_H_WINDOW_START );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set horizontal window start failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default horizontal window end */
+    res = ov2640_set_horizontal_window_end( &gs_handle, OV2640_BASIC_DEFAULT_H_WINDOW_END );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set horizontal window end failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vertical window line start */
+    res = ov2640_set_vertical_window_line_start( &gs_handle, OV2640_BASIC_DEFAULT_V_WINDOW_START );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vertical window line start failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vertical window line end */
+    res = ov2640_set_vertical_window_line_end( &gs_handle, OV2640_BASIC_DEFAULT_V_WINDOW_END );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vertical window line end failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vsync pulse width */
+    res = ov2640_set_vsync_pulse_width( &gs_handle, OV2640_BASIC_DEFAULT_VSYNC_PULSE_WIDTH );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vsync pulse width failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default agc gain */
+    res = ov2640_set_agc_gain( &gs_handle, OV2640_BASIC_DEFAULT_AGC_GAIN );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set agc gain failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dummy frame */
+    res = ov2640_set_dummy_frame( &gs_handle, OV2640_BASIC_DEFAULT_DUMMY_FRAME );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dummy frame failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default aec */
+    res = ov2640_set_aec( &gs_handle, OV2640_BASIC_DEFAULT_AEC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set aec failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default frame exposure pre charge row number */
+    res = ov2640_set_frame_exposure_pre_charge_row_number( &gs_handle, OV2640_BASIC_DEFAULT_FRAME_EXPOSURE_PRE_ROW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set frame exposure pre charge row number failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default chsync href swap */
+    res = ov2640_set_chsync_href_swap( &gs_handle, OV2640_BASIC_DEFAULT_CHSYNC_HREF_SWAP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set chsync href swap failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default href chsync swap */
+    res = ov2640_set_href_chsync_swap( &gs_handle, OV2640_BASIC_DEFAULT_HREF_CHSYNC_SWAP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set href chsync swap failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default pclk output qualified by href */
+    res = ov2640_set_pclk_output_qualified_by_href( &gs_handle, OV2640_BASIC_DEFAULT_PCLK_OUTPUT_BY_HREF );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set pclk output qualified by href failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default pclk edge */
+    res = ov2640_set_pclk_edge( &gs_handle, OV2640_BASIC_DEFAULT_PCLK_EDGE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set pclk edge failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default href polarity */
+    res = ov2640_set_href_polarity( &gs_handle, OV2640_BASIC_DEFAULT_HREF_POLARITY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set href polarity failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vsync polarity */
+    res = ov2640_set_vsync_polarity( &gs_handle, OV2640_BASIC_DEFAULT_VSYNC_POLARITY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vsync polarity failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default hsync polarity */
+    res = ov2640_set_hsync_polarity( &gs_handle, OV2640_BASIC_DEFAULT_HSYNC_POLARITY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set hsync polarity failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default line interval adjust */
+    res = ov2640_set_line_interval_adjust( &gs_handle, OV2640_BASIC_DEFAULT_LINE_INTERVAL_ADJUST );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set line interval adjust failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default hsync position and width start point */
+    res = ov2640_set_hsync_position_and_width_start_point( &gs_handle, OV2640_BASIC_DEFAULT_HSYNC_START_POINT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set hsync position and width start point failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default hsync position and width end point */
+    res = ov2640_set_hsync_position_and_width_end_point( &gs_handle, OV2640_BASIC_DEFAULT_HSYNC_END_POINT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set hsync position and width end point failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default luminance average */
+    res = ov2640_set_luminance_average( &gs_handle, OV2640_BASIC_DEFAULT_LUMINANCE_AVG );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set luminance average failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default flash light */
+    res = ov2640_set_flash_light( &gs_handle, OV2640_BASIC_DEFAULT_FLASH_LIGHT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set flash light failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default 16 zone average weight option */
+    res = ov2640_set_16_zone_average_weight_option( &gs_handle, OV2640_BASIC_DEFAULT_16_ZONE_AVG_WEIGHT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set 16 zone average weight option failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* enable dsp bypass */
+    res = ov2640_set_dsp_bypass( &gs_handle, OV2640_BOOL_TRUE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dsp bypass failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default bpc */
+    res = ov2640_set_bpc( &gs_handle, OV2640_BASIC_DEFAULT_DSP_BPC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set bpc failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default wpc */
+    res = ov2640_set_wpc( &gs_handle, OV2640_BASIC_DEFAULT_DSP_WPC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set wpc failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dvp pclk */
+    res = ov2640_set_dvp_pclk( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DVP_PCLK );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dvp pclk failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default cip */
+    res = ov2640_set_cip( &gs_handle, OV2640_BASIC_DEFAULT_DSP_CIP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set cip failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dmy */
+    res = ov2640_set_dmy( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DMY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dmy failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default raw gma */
+    res = ov2640_set_raw_gma( &gs_handle, OV2640_BASIC_DEFAULT_DSP_RAW_GMA );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set raw gma failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dg */
+    res = ov2640_set_dg( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DG );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dg failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default awb */
+    res = ov2640_set_awb( &gs_handle, OV2640_BASIC_DEFAULT_DSP_AWB );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set awb failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default awb gain */
+    res = ov2640_set_awb_gain( &gs_handle, OV2640_BASIC_DEFAULT_DSP_AWB_GAIN );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set awb gain failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default pre */
+    res = ov2640_set_pre( &gs_handle, OV2640_BASIC_DEFAULT_DSP_PRE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set pre failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dvp y8 */
+    res = ov2640_set_dvp_y8( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DVP_Y8 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dvp y8 failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default jpeg output */
+    res = ov2640_set_jpeg_output( &gs_handle, OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set jpeg output failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dvp output format */
+    res = ov2640_set_dvp_output_format( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DVP_OUTPUT_FORMAT );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dvp output format failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dvp jpeg output href timing */
+    res = ov2640_set_dvp_jpeg_output_href_timing( &gs_handle, OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT_HREF_TIMING );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dvp jpeg output href timing failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default byte swap */
+    res = ov2640_set_byte_swap( &gs_handle, OV2640_BASIC_DEFAULT_DSP_BYTE_SWAP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set byte swap failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default image horizontal */
+    res = ov2640_set_image_horizontal( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set image horizontal failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default image vertical */
+    res = ov2640_set_image_vertical( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set image vertical failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dcw */
+    res = ov2640_set_dcw( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DCW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dcw failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sde */
+    res = ov2640_set_sde( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SDE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sde failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default uv adj */
+    res = ov2640_set_uv_adj( &gs_handle, OV2640_BASIC_DEFAULT_DSP_UV_ADJ );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set uv adj failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default uv avg */
+    res = ov2640_set_uv_avg( &gs_handle, OV2640_BASIC_DEFAULT_DSP_UV_AVG );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set uv avg failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default cmx */
+    res = ov2640_set_cmx( &gs_handle, OV2640_BASIC_DEFAULT_DSP_CMX );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set cmx failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default lp dp */
+    res = ov2640_set_lp_dp( &gs_handle, OV2640_BASIC_DEFAULT_DSP_LP_DP );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set lp dp failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default round */
+    res = ov2640_set_round( &gs_handle, OV2640_BASIC_DEFAULT_DSP_ROUND );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set round failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vertical divider */
+    res = ov2640_set_vertical_divider( &gs_handle, OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vertical divider failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default horizontal divider */
+    res = ov2640_set_horizontal_divider( &gs_handle, OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set horizontal divider failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default horizontal size */
+    res = ov2640_set_horizontal_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE / 4 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set horizontal size failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vertical size */
+    res = ov2640_set_vertical_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE / 4 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vertical size failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default offset x */
+    res = ov2640_set_offset_x( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_X );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set offset x failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default offset y */
+    res = ov2640_set_offset_y( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_Y );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set offset y failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default output width */
+    res = ov2640_set_output_width( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH / 4 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set output width failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default output height */
+    res = ov2640_set_output_height( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT / 4 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set output height failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default zoom speed */
+    res = ov2640_set_zoom_speed( &gs_handle, OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set zoom speed failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default quantization scale factor */
+    res = ov2640_set_quantization_scale_factor( &gs_handle, OV2640_BASIC_DEFAULT_DSP_QSF );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set quantization scale factor failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sccb master speed */
+    res = ov2640_set_sccb_master_speed( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SCCB_MASTER_SPEED );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sccb master speed failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default address auto increase */
+    res = ov2640_set_address_auto_increase( &gs_handle, OV2640_BASIC_DEFAULT_DSP_ADDRESS_AUTO_INC );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set address auto increase failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sccb */
+    res = ov2640_set_sccb( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SCCB );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sccb failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sccb master clock delay */
+    res = ov2640_set_sccb_master_clock_delay( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SCCB_CLOCK_DELAY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sccb master clock delay failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sccb master access */
+    res = ov2640_set_sccb_master_access( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SCCB_ACCESS );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sccb master access failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default sensor pass through access */
+    res = ov2640_set_sensor_pass_through_access( &gs_handle, OV2640_BASIC_DEFAULT_DSP_SENSOR_PASS_ACCESS );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set sensor pass through access failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default aec enable */
+    res = ov2640_set_aec_enable( &gs_handle, OV2640_BASIC_DEFAULT_DSP_AEC_ENABLE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set aec enable failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default aec sel */
+    res = ov2640_set_aec_sel( &gs_handle, OV2640_BASIC_DEFAULT_DSP_AEC_SEL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set aec sel failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default stat sel */
+    res = ov2640_set_stat_sel( &gs_handle, OV2640_BASIC_DEFAULT_DSP_STAT_SEL );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set stat sel failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default vfirst */
+    res = ov2640_set_vfirst( &gs_handle, OV2640_BASIC_DEFAULT_DSP_VFIRST );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set vfirst failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default yuv422 */
+    res = ov2640_set_yuv422( &gs_handle, OV2640_BASIC_DEFAULT_DSP_YUV422 );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set yuv422 failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default yuv */
+    res = ov2640_set_yuv( &gs_handle, OV2640_BASIC_DEFAULT_DSP_YUV );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set yuv failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default rgb */
+    res = ov2640_set_rgb( &gs_handle, OV2640_BASIC_DEFAULT_DSP_RGB );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set rgb failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default raw */
+    res = ov2640_set_raw( &gs_handle, OV2640_BASIC_DEFAULT_DSP_RAW );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set raw failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dp selx */
+    res = ov2640_set_dp_selx( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DP_SELX );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dp selx failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* set default dp sely */
+    res = ov2640_set_dp_sely( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DP_SELY );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dp sely failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    /* disable dsp bypass */
+    res = ov2640_set_dsp_bypass( &gs_handle, OV2640_BOOL_FALSE );
+    if ( res != 0 )
+    {
+        ov2640_interface_debug_print( "ov2640: set dsp bypass failed.\n" );
+        ( void ) ov2640_deinit( &gs_handle );
+
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
- * Camera resolution selection.
- * @param opt Resolution option.
+ * @brief  basic example deinit
+ * @return status code
+ *         - 0 success
+ *         - 1 deinit failed
+ * @note   none
  */
-void OV2640_ResolutionOptions(uint16_t opt) {
-	switch (opt) {
-	case 15533:
-		OV2640_ResolutionConfiguration(0);
-		break;
-	case 15534:
-		OV2640_ResolutionConfiguration(1);
-		break;
-	case 15535:
-		OV2640_ResolutionConfiguration(2);
-		break;
-	case 25535:
-		OV2640_ResolutionConfiguration(3);
-		break;
-	case 45535:
-		OV2640_ResolutionConfiguration(4);
-		break;
-	case 65535:
-		OV2640_ResolutionConfiguration(5);
-		break;
-	default:
-		OV2640_ResolutionConfiguration(1);
-		break;
-	}
+uint8_t ov2640_basic_deinit( void )
+{
+    /* close ov2640 */
+    if ( ov2640_deinit( &gs_handle ) != 0 )
+    {
+        return 1;
+    }
 
+    return 0;
 }
 
 /**
- * Camera resolution selection.
- * @param opt Resolution option.
+ * @brief  basic example set jpeg mode
+ * @return status code
+ *         - 0 success
+ *         - 1 set jpeg mode failed
+ * @note   none
  */
-void OV2640_ResolutionConfiguration(short opt) {
-#ifdef DEBUG
-	my_printf("Starting resolution choice \r\n");
-#endif
-	OV2640_Configuration(OV2640_JPEG_INIT);
-	OV2640_Configuration(OV2640_YUV422);
-	OV2640_Configuration(OV2640_JPEG);
-	HAL_Delay(10);
-	SCCB_Write(0xff, 0x01);
-	HAL_Delay(10);
-	SCCB_Write(0x15, 0x00);
+uint8_t ov2640_basic_set_jpeg_mode( void )
+{
+    /* enter to jpeg mode */
+    if ( ov2640_table_jpeg_init( &gs_handle ) != 0 )
+    {
+        return 1;
+    }
 
-	switch (opt) {
-	case 0:
-		OV2640_Configuration(OV2640_160x120_JPEG);
-		break;
-	case 1:
-		OV2640_Configuration(OV2640_320x240_JPEG);
-		break;
-	case 2:
-		OV2640_Configuration(OV2640_640x480_JPEG);
-		break;
-	case 3:
-		OV2640_Configuration(OV2640_800x600_JPEG);
-		break;
-	case 4:
-		OV2640_Configuration(OV2640_1024x768_JPEG);
-		break;
-	case 5:
-		OV2640_Configuration(OV2640_1280x960_JPEG);
-		break;
-	default:
-		OV2640_Configuration(OV2640_320x240_JPEG);
-		break;
-	}
-
-#ifdef DEBUG
-	my_printf("Finalize configuration \r\n");
-#endif
+    return 0;
 }
 
 /**
- * Configure camera registers.
- * @param arr Array with addresses and values using to overwrite camera registers.
+ * @brief  basic example set rgb565 mode
+ * @return status code
+ *         - 0 success
+ *         - 1 set rgb565 mode failed
+ * @note   none
  */
-void OV2640_Configuration(const unsigned char arr[][2]) {
-	unsigned short i = 0;
-	uint8_t reg_addr, data, data_read;
-	while (1) {
-		reg_addr = arr[i][0];
-		data = arr[i][1];
-		if (reg_addr == 0xff && data == 0xff) {
-			break;
-		}
-		SCCB_Read(reg_addr, &data_read);
-		SCCB_Write(reg_addr, data);
-#ifdef DEBUG
-		my_printf("SCCB write: 0x%x 0x%x=>0x%x\r\n", reg_addr, data_read, data);
-#endif
-		HAL_Delay(10);
-		SCCB_Read(reg_addr, &data_read);
-		if (data != data_read) {
-#ifdef DEBUG
-			my_printf("SCCB write failure: 0x%x 0x%x\r\n", reg_addr, data_read);
-#endif
-		}
-		i++;
-	}
+uint8_t ov2640_basic_set_rgb565_mode( void )
+{
+    /* enter to rgb565 mode */
+    if ( ov2640_table_rgb565_init( &gs_handle ) != 0 )
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
- *  Changing the special effect applied to a photo.
- * @param specialEffect Name or value of the special effect.
+ * @brief     basic example set light mode
+ * @param[in] mode light mode
+ * @return    status code
+ *            - 0 success
+ *            - 1 set light mode failed
+ * @note      none
  */
-void OV2640_SpecialEffect(short specialEffect) {
-#ifdef DEBUG
-	my_printf("Special effect value:%d\r\n", specialEffect);
-#endif
-	if (specialEffect == 0) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_ANTIQUE);
-	} else if (specialEffect == 1) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_BLUISH);
-	} else if (specialEffect == 2) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_GREENISH);
-	} else if (specialEffect == 3) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_REDDISH);
-	} else if (specialEffect == 4) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_BLACK);
-	} else if (specialEffect == 5) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_NEGATIVE);
-	} else if (specialEffect == 6) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_BLACK_NEGATIVE);
-	} else if (specialEffect == 7) {
-		OV2640_Configuration(OV2640_SPECIAL_EFFECTS_NORMAL);
-	}
+uint8_t ov2640_basic_set_light_mode( ov2640_light_mode_t mode )
+{
+    /* set light mode */
+    if ( ov2640_set_light_mode( &gs_handle, mode ) != 0 )
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
- * Activation of simple white balance.
+ * @brief     basic example set color saturation
+ * @param[in] color color saturation
+ * @return    status code
+ *            - 0 success
+ *            - 1 set color saturation failed
+ * @note      none
  */
-void OV2640_AdvancedWhiteBalance() {
-#ifdef DEBUG
-	my_printf("Enable simple white balance mode\r\n");
-#endif
-	SCCB_Write(0xff, 0x00);
-	HAL_Delay(1);
-	SCCB_Write(0xc7, 0x00);
+uint8_t ov2640_basic_set_color_saturation( ov2640_color_saturation_t color )
+{
+    /* set color saturation */
+    if ( ov2640_set_color_saturation( &gs_handle, color ) != 0 )
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
- * Activation of simple white balance.
+ * @brief     basic example set brightness
+ * @param[in] brightness set brightness
+ * @return    status code
+ *            - 0 success
+ *            - 1 set brightness failed
+ * @note      none
  */
-void OV2640_SimpleWhiteBalance() {
-#ifdef DEBUG
-	my_printf("Enable simple white balance mode\r\n");
-#endif
-	SCCB_Write(0xff, 0x00);
-	HAL_Delay(1);
-	SCCB_Write(0xc7, 0x10);
+uint8_t ov2640_basic_set_brightness( ov2640_brightness_t brightness )
+{
+    /* set brightness */
+    if ( ov2640_set_brightness( &gs_handle, brightness ) != 0 )
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
- * Changing image brightness.
- * @param brightness Name or value of the brightness.
+ * @brief     basic example set contrast
+ * @param[in] contrast set contrast
+ * @return    status code
+ *            - 0 success
+ *            - 1 set contrast failed
+ * @note      none
  */
-void OV2640_Brightness(short brightness) {
-#ifdef DEBUG
-	my_printf("Brightness value:%d\r\n", brightness);
-#endif
+uint8_t ov2640_basic_set_contrast( ov2640_contrast_t contrast )
+{
+    /* set contrast */
+    if ( ov2640_set_contrast( &gs_handle, contrast ) != 0 )
+    {
+        return 1;
+    }
 
-	if (brightness == 0) {
-		OV2640_Configuration(OV2640_BRIGHTNESS0);
-	} else if (brightness == 1) {
-		OV2640_Configuration(OV2640_BRIGHTNESS1);
-	} else if (brightness == 2) {
-		OV2640_Configuration(OV2640_BRIGHTNESS2);
-	} else if (brightness == 3) {
-		OV2640_Configuration(OV2640_BRIGHTNESS_1);
-	} else if (brightness == 4) {
-		OV2640_Configuration(OV2640_BRIGHTNESS_2);
-	}
+    return 0;
 }
 
 /**
- * Changing image light mode.
- * @param lightMode Name or value of the light mode.
+ * @brief     basic example set special effect
+ * @param[in] effect set special effect
+ * @return    status code
+ *            - 0 success
+ *            - 1 set special_effect failed
+ * @note      none
  */
-void OV2640_LightMode(short lightMode) {
-#ifdef DEBUG
-	my_printf("Light mode value:%d\r\n", lightMode);
-#endif
+uint8_t ov2640_basic_set_special_effect( ov2640_special_effect_t effect )
+{
+    /* set special effect */
+    if ( ov2640_set_special_effect( &gs_handle, effect ) != 0 )
+    {
+        return 1;
+    }
 
-	if (lightMode == 0) {
-		OV2640_AdvancedWhiteBalance();
-	} else if (lightMode == 1) {
-		OV2640_Configuration(OV2640_LIGHT_MODE_SUNNY);
-	} else if (lightMode == 2) {
-		OV2640_Configuration(OV2640_LIGHT_MODE_CLOUDY);
-	} else if (lightMode == 3) {
-		OV2640_Configuration(OV2640_LIGHT_MODE_OFFICE);
-	} else if (lightMode == 4) {
-		OV2640_Configuration(OV2640_LIGHT_MODE_HOME);
-	}
-}
-/**
- *  Changing image saturation.
- * @param saturation  Name or value of the saturation.
- */
-void OV2640_Saturation(short saturation) {
-#ifdef DEBUG
-	my_printf("Saturation value:%d\r\n", saturation);
-#endif
-
-	if (saturation == 0) {
-		OV2640_Configuration(OV2640_SATURATION0);
-	} else if (saturation == 1) {
-		OV2640_Configuration(OV2640_SATURATION1);
-	} else if (saturation == 2) {
-		OV2640_Configuration(OV2640_SATURATION2);
-	} else if (saturation == 3) {
-		OV2640_Configuration(OV2640_SATURATION_1);
-	} else if (saturation == 4) {
-		OV2640_Configuration(OV2640_SATURATION_2);
-	}
+    return 0;
 }
 
 /**
- * Changing image contrast.
- * @param contrast Name or value of the contrast.
+ * @brief     basic example set image resolution
+ * @param[in] resolution set image resolution
+ * @return    status code
+ *            - 0 success
+ *            - 1 set image resolution failed
+ * @note      none
  */
-void OV2640_Contrast(short contrast) {
-#ifdef DEBUG
-	my_printf("Contrast value:%d\r\n", contrast);
-#endif
+uint8_t ov2640_basic_set_image_resolution( ov2640_image_resolution_t resolution )
+{
+    uint8_t res;
 
-	if (contrast == 0) {
-		OV2640_Configuration(OV2640_CONTRAST0);
-	} else if (contrast == 1) {
-		OV2640_Configuration(OV2640_CONTRAST1);
-	} else if (contrast == 2) {
-		OV2640_Configuration(OV2640_CONTRAST2);
-	} else if (contrast == 3) {
-		OV2640_Configuration(OV2640_CONTRAST_1);
-	} else if (contrast == 4) {
-		OV2640_Configuration(OV2640_CONTRAST_2);
-	}
-}
+    switch ( resolution )
+    {
+        case OV2640_IMAGE_RESOLUTION_QQVGA:
+        {
+            /* 160 x 120 */
+            res = ov2640_set_output_width( &gs_handle, 160 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 120 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
 
-/**
- * Stop DCMI (Clear  memory buffer)
- */
-void OV2640_StopDCMI(void) {
-#ifdef DEBUG
-	my_printf("DCMI has been stopped \r\n");
-#endif
-	HAL_DCMI_Stop(phdcmi);
-	HAL_Delay(10); // If you get a DCMI error (data is not received), increase value to 30.
-}
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_QCIF:
+        {
+            /* 176 x 144 */
+            res = ov2640_set_output_width( &gs_handle, 176 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 144 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
 
-/**
- * Executes a single reading from DCMI and returns  data as an image.
- * @param frameBuffer Table with data.
- * @param length Length of capture to be transferred.
- */
-void OV2640_CaptureSnapshot(uint32_t frameBuffer, int length) {
-	HAL_DCMI_Start_DMA(phdcmi, DCMI_MODE_SNAPSHOT, frameBuffer, length);
-	HAL_Delay(2000);
-	HAL_DCMI_Suspend(phdcmi);
-	HAL_DCMI_Stop(phdcmi);
-}
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_QVGA:
+        {
+            /* 320 x 240 */
+            res = ov2640_set_output_width( &gs_handle, 320 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 240 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
 
-/**
- * Write value to camera register.
- * @param reg_addr Address of register.
- * @param data New value.
- * @return  Operation status.
- */
-short SCCB_Write(uint8_t reg_addr, uint8_t data) {
-	short opertionStatus = 0;
-	uint8_t buffer[2] = { 0 };
-	HAL_StatusTypeDef connectionStatus;
-	buffer[0] = reg_addr;
-	buffer[1] = data;
-	__disable_irq();
-	connectionStatus = HAL_I2C_Master_Transmit(phi2c, (uint16_t) 0x60, buffer,
-			2, 100);
-	if (connectionStatus == HAL_OK) {
-		opertionStatus = 1;
-	} else {
-		opertionStatus = 0;
-	}
-	__enable_irq();
-	return opertionStatus;
-}
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_WQVGA:
+        {
+            /* 400 x 240 */
+            res = ov2640_set_output_width( &gs_handle, 400 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 240 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
 
-/**
- * Reading data from camera registers.
- * @param reg_addr Address of register.
- * @param pdata Value read from register.
- * @return Operation status.
- */
-short SCCB_Read(uint8_t reg_addr, uint8_t *pdata) {
-	short opertionStatus = 0;
-	HAL_StatusTypeDef connectionStatus;
-	__disable_irq();
-	connectionStatus = HAL_I2C_Master_Transmit(phi2c, (uint16_t) 0x60,
-			&reg_addr, 1, 100);
-	if (connectionStatus == HAL_OK) {
-		connectionStatus = HAL_I2C_Master_Receive(phi2c, (uint16_t) 0x61, pdata,
-				1, 100);
-		if (connectionStatus == HAL_OK) {
-			opertionStatus = 0;
-		} else {
-			opertionStatus = 1;
-		}
-	} else {
-		opertionStatus = 2;
-	}
-	__enable_irq();
-	return opertionStatus;
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_CIF:
+        {
+            /* 352 x 288 */
+            res = ov2640_set_output_width( &gs_handle, 352 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 288 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_VGA:
+        {
+            /* 640 x 480 */
+            res = ov2640_set_output_width( &gs_handle, 640 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 480 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_SVGA:
+        {
+            /* 800 x 600 */
+            res = ov2640_set_output_width( &gs_handle, 800 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 600 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_XGA:
+        {
+            /* 1024 x 768 */
+            res = ov2640_set_output_width( &gs_handle, 1024 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 768 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_WXGA:
+        {
+            /* 1280 x 800 */
+            res = ov2640_set_output_width( &gs_handle, 1280 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 800 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_XVGA:
+        {
+            /* 1280 x 960 */
+            res = ov2640_set_output_width( &gs_handle, 1280 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 960 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_WXGA_PLUS:
+        {
+            /* 1440 x 900 */
+            res = ov2640_set_output_width( &gs_handle, 1440 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 900 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_SXGA:
+        {
+            /* 1280 x 1024 */
+            res = ov2640_set_output_width( &gs_handle, 1280 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 1024 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        case OV2640_IMAGE_RESOLUTION_UXGA:
+        {
+            /* 1600 x 1200 */
+            res = ov2640_set_output_width( &gs_handle, 1600 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+            res = ov2640_set_output_height( &gs_handle, 1200 / 4 );
+            if ( res != 0 )
+            {
+                break;
+            }
+
+            break;
+        }
+        default:
+        {
+            res = 1;
+
+            break;
+        }
+    }
+
+    return res;
 }
