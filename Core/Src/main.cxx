@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dma.h"
 #include "usb_device.h"
 
@@ -78,7 +79,7 @@ static void MX_I2C1_Init( void );
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-enum imageResolution imgRes = RES_1280x960;
+enum imageResolution imgRes = RES_160X120;
 uint8_t frameBuffer[ 1024 * 96 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) ) { 0 };
 unsigned short mutex       = 0;
 uint32_t bufferPointer     = 0;
@@ -136,7 +137,8 @@ int main( void )
     {
         if ( HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_13 ) )
         {
-            memset( frameBuffer, 0, sizeof( frameBuffer ) );
+            // memset( frameBuffer, 0, sizeof( frameBuffer ) );
+            bufferPointer = 0;
             OV2640_CaptureSnapshot( ( uint32_t ) frameBuffer, 1024 * 96 );
             while ( 1 )
             {
@@ -157,7 +159,7 @@ int main( void )
                 }
                 bufferPointer++;
             }
-            bufferPointer = 1024 * 96;
+            // bufferPointer = 1024 * 96;
             // FATFS FatFs;
             // FIL Fil;
             // FRESULT FR_Status;
@@ -193,14 +195,14 @@ int main( void )
             // f_close( &Fil );
             // f_mount( NULL, "", 0 );
             // } while ( 0 );
-            uint8_t data[ 256 ] { 0 };
-            for ( size_t i { 0 }; i < ( bufferPointer / 256 ); ++i )
+            uint8_t data[ APP_TX_DATA_SIZE ] { 0 };
+            for ( size_t cN { 0 }; cN < ( bufferPointer + APP_TX_DATA_SIZE - 1 ) / APP_TX_DATA_SIZE; ++cN )
             {
-                memcpy( data, frameBuffer + ( ( 256 * i ) % bufferPointer ), bufferPointer - 256 * i > 256 ? 256 : bufferPointer - 256 * i );
-                CDC_Transmit_FS( data, bufferPointer - 256 * i > 256 ? 256 : bufferPointer - 256 * i );
+                auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
+                // memcpy( data, ( *&frameBuffer ) + ( 256 * cN ), cSize );
+                CDC_Transmit_FS( ( *&frameBuffer ) + ( APP_TX_DATA_SIZE * cN ), cSize );
+                HAL_Delay( 1 );
             }
-            printf( "\n" );
-            while ( 1 );
         }
         /* USER CODE END WHILE */
 
@@ -493,6 +495,7 @@ void vprint( const char *fmt, va_list argp )
 
 void my_printf( const char *fmt, ... )
 {
+    return;
     va_list argp;
     va_start( argp, fmt );
     vprint( fmt, argp );

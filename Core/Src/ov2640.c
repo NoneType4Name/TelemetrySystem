@@ -928,7 +928,7 @@ void OV2640_StopDCMI( void )
 void OV2640_CaptureSnapshot( uint32_t frameBuffer, int length )
 {
     HAL_DCMI_Start_DMA( phdcmi, DCMI_MODE_SNAPSHOT, frameBuffer, length );
-    HAL_Delay( 2000 );
+    // HAL_Delay( 1 );
     HAL_DCMI_Suspend( phdcmi );
     HAL_DCMI_Stop( phdcmi );
 }
