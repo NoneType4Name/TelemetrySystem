@@ -166,7 +166,6 @@ int main( void )
     {
         if ( HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_13 ) )
         {
-            // memset( frameBuffer, 0, sizeof( frameBuffer ) );
             bufferPointer = 0;
             OV2640_CaptureSnapshot( ( uint32_t ) frameBuffer, 1024 * 96 );
             while ( 1 )
@@ -228,7 +227,6 @@ int main( void )
             for ( size_t cN { 0 }; cN < ( bufferPointer + APP_TX_DATA_SIZE - 1 ) / APP_TX_DATA_SIZE; ++cN )
             {
                 auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
-                // memcpy( data, ( *&frameBuffer ) + ( 256 * cN ), cSize );
                 CDC_Transmit_FS( ( *&frameBuffer ) + ( APP_TX_DATA_SIZE * cN ), cSize );
                 HAL_Delay( 1 );
             }
@@ -494,6 +492,10 @@ static void MX_GPIO_Init( void )
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
+{
+}
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
 {
