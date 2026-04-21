@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal_dma.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -137,16 +138,11 @@ int main( void )
         {
             memset( frameBuffer, 0, sizeof( frameBuffer ) );
             OV2640_CaptureSnapshot( ( uint32_t ) frameBuffer, 1024 * 96 );
-
-            auto buffer { *&frameBuffer };
-
             while ( 1 )
             {
                 if ( headerFound == 0 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD8 )
                 {
                     headerFound = 1;
-                    buffer += bufferPointer;
-                    bufferPointer = 0;
                 }
                 if ( headerFound == 1 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD9 )
                 {
@@ -162,41 +158,48 @@ int main( void )
                 bufferPointer++;
             }
             bufferPointer = 1024 * 96;
-            FATFS FatFs;
-            FIL Fil;
-            FRESULT FR_Status;
-            UINT WWC; // Read/Write Word Counter
-            do
+            // FATFS FatFs;
+            // FIL Fil;
+            // FRESULT FR_Status;
+            // UINT WWC; // Read/Write Word Counter
+            // do
+            // {
+            // FR_Status = f_mount( &FatFs, SDPath, 1 );
+            // if ( FR_Status != FR_OK )
+            // {
+            //     break;
+            // }
+            // FR_Status = f_open( &Fil, "photo.jpeg", FA_WRITE | FA_CREATE_ALWAYS );
+            // if ( FR_Status != FR_OK )
+            // {
+            //     break;
+            // }
+            // while ( bufferPointer )
+            // {
+            //     uint16_t wrt;
+            //     if ( bufferPointer > 512 )
+            //     {
+            //         wrt = 512;
+            //         bufferPointer -= 512;
+            //     }
+            //     else
+            //     {
+            //         wrt           = bufferPointer;
+            //         bufferPointer = 0;
+            //     }
+            // f_write( &Fil, buffer, wrt, &WWC );
+            // buffer += wrt;
+            // }
+            // f_close( &Fil );
+            // f_mount( NULL, "", 0 );
+            // } while ( 0 );
+            uint8_t data[ 256 ] { 0 };
+            for ( size_t i { 0 }; i < ( bufferPointer / 256 ); ++i )
             {
-                FR_Status = f_mount( &FatFs, SDPath, 1 );
-                if ( FR_Status != FR_OK )
-                {
-                    break;
-                }
-                FR_Status = f_open( &Fil, "photo.jpeg", FA_WRITE | FA_CREATE_ALWAYS );
-                if ( FR_Status != FR_OK )
-                {
-                    break;
-                }
-                while ( bufferPointer )
-                {
-                    uint16_t wrt;
-                    if ( bufferPointer > 512 )
-                    {
-                        wrt = 512;
-                        bufferPointer -= 512;
-                    }
-                    else
-                    {
-                        wrt           = bufferPointer;
-                        bufferPointer = 0;
-                    }
-                    auto e { f_write( &Fil, buffer, wrt, &WWC ) };
-                    buffer += wrt;
-                }
-                f_close( &Fil );
-                f_mount( NULL, "", 0 );
-            } while ( 0 );
+                memcpy( data, frameBuffer + ( ( 256 * i ) % bufferPointer ), bufferPointer - 256 * i > 256 ? 256 : bufferPointer - 256 * i );
+                CDC_Transmit_FS( data, bufferPointer - 256 * i > 256 ? 256 : bufferPointer - 256 * i );
+            }
+            printf( "\n" );
             while ( 1 );
         }
         /* USER CODE END WHILE */
