@@ -8,7 +8,6 @@ CMakePresets.json
 .clangd
 .vscode
 *.s
-*.ld
 .*
 !.gitignore
 !.clang-format
