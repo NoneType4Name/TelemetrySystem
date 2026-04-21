@@ -130,41 +130,32 @@ int main( void )
     HAL_Delay( 10 );
     OV2640_ResolutionOptions( imgRes );
     HAL_Delay( 10 );
-    OV2640_Brightness( 2 ); // BRIGHTNESS2 (0x40)
+    OV2640_Brightness( Brightness2 );
     HAL_Delay( 10 );
 
-    // 3. Минимальный контраст (сохраняем детали в тенях)
-    OV2640_Contrast( 4 ); // CONTRAST_2
+    OV2640_Contrast( Contrast2 );
     HAL_Delay( 10 );
 
-    // 4. Минимальная насыщенность (снижаем цветовой шум)
-    OV2640_Saturation( 4 ); // SATURATION_2
+    OV2640_Saturation( Saturation2 );
     HAL_Delay( 10 );
 
-    // 5. Принудительный баланс белого (солнечный — теплые тона)
-    OV2640_LightMode( 1 ); // SUNNY
+    OV2640_LightMode( Auto );
     HAL_Delay( 10 );
 
-    // 6. Дополнительно: отключаем спецэффекты
-    OV2640_SpecialEffect( 7 ); // NORMAL
     SCCB_Write( 0xff, 0x01 );
 
-    // Включаем автоматическую экспозицию и AGC (COM8)
-    SCCB_Write( 0x13, 0xff ); // COM8: включить AGC и AEC
+    // auto exp и AGC (COM8)
+    SCCB_Write( 0x13, 0xff ); // COM8: enable AGC and AEC
 
-    // Устанавливаем максимальное усиление AGC (COM9)
-    // Бит[7:5]=100 -> 32x, =101 -> 64x, =11x -> 128x
-    SCCB_Write( 0x14, 0xe0 ); // COM9: 128x максимальное усиление
+    // min amplify AGC (COM9)
+    SCCB_Write( 0x14, 0xe0 ); // COM9: 128x max amp
 
     // Увеличиваем время экспозиции (AEC)
-    // REG45[5:0] - старшие биты, REG10 - средние, REG04[1:0] - младшие
-    SCCB_Write( 0x45, 0x3f ); // REG45: максимальные старшие биты AEC
-    SCCB_Write( 0x10, 0xff ); // AEC: средние биты
+    SCCB_Write( 0x45, 0x3f );
+    SCCB_Write( 0x10, 0xff );
 
-    // Отключаем banding filter (он ограничивает экспозицию)
-    SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF (бит 5 = 0)
+    SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF
 
-    // Возвращаемся в DSP банк
     SCCB_Write( 0xff, 0x00 );
     HAL_Delay( 100 );
     /* USER CODE END 2 */
