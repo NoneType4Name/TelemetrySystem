@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "driver_ov2640.h"
 #include "fatfs.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dma.h"
@@ -79,7 +80,7 @@ static void MX_I2C1_Init( void );
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-enum imageResolution imgRes = RES_160X120;
+enum imageResolution imgRes = RES_1280x960;
 uint8_t frameBuffer[ 1024 * 96 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) ) { 0 };
 unsigned short mutex       = 0;
 uint32_t bufferPointer     = 0;
@@ -128,6 +129,43 @@ int main( void )
     OV2640_Init( &hi2c1, &hdcmi );
     HAL_Delay( 10 );
     OV2640_ResolutionOptions( imgRes );
+    HAL_Delay( 10 );
+    OV2640_Brightness( 2 ); // BRIGHTNESS2 (0x40)
+    HAL_Delay( 10 );
+
+    // 3. Минимальный контраст (сохраняем детали в тенях)
+    OV2640_Contrast( 4 ); // CONTRAST_2
+    HAL_Delay( 10 );
+
+    // 4. Минимальная насыщенность (снижаем цветовой шум)
+    OV2640_Saturation( 4 ); // SATURATION_2
+    HAL_Delay( 10 );
+
+    // 5. Принудительный баланс белого (солнечный — теплые тона)
+    OV2640_LightMode( 1 ); // SUNNY
+    HAL_Delay( 10 );
+
+    // 6. Дополнительно: отключаем спецэффекты
+    OV2640_SpecialEffect( 7 ); // NORMAL
+    SCCB_Write( 0xff, 0x01 );
+
+    // Включаем автоматическую экспозицию и AGC (COM8)
+    SCCB_Write( 0x13, 0xff ); // COM8: включить AGC и AEC
+
+    // Устанавливаем максимальное усиление AGC (COM9)
+    // Бит[7:5]=100 -> 32x, =101 -> 64x, =11x -> 128x
+    SCCB_Write( 0x14, 0xe0 ); // COM9: 128x максимальное усиление
+
+    // Увеличиваем время экспозиции (AEC)
+    // REG45[5:0] - старшие биты, REG10 - средние, REG04[1:0] - младшие
+    SCCB_Write( 0x45, 0x3f ); // REG45: максимальные старшие биты AEC
+    SCCB_Write( 0x10, 0xff ); // AEC: средние биты
+
+    // Отключаем banding filter (он ограничивает экспозицию)
+    SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF (бит 5 = 0)
+
+    // Возвращаемся в DSP банк
+    SCCB_Write( 0xff, 0x00 );
     HAL_Delay( 100 );
     /* USER CODE END 2 */
 
