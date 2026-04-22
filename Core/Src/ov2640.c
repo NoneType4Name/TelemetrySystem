@@ -641,9 +641,9 @@ void OV2640_ResolutionConfiguration( short opt )
 #ifdef DEBUG
     my_printf( "Starting resolution choice \r\n" );
 #endif
-    OV2640_Configuration( OV2640_JPEG_INIT );
-    OV2640_Configuration( OV2640_YUV422 );
-    OV2640_Configuration( OV2640_JPEG );
+    // OV2640_Configuration( OV2640_JPEG_INIT );
+    // OV2640_Configuration( OV2640_YUV422 );
+    // OV2640_Configuration( OV2640_JPEG );
     HAL_Delay( 10 );
     SCCB_Write( 0xff, 0x01 );
     HAL_Delay( 10 );

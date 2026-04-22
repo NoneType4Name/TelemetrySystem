@@ -47,7 +47,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     # Add user sources here
     ${PROJECT_SOURCE_DIR}/Core/Src/ov2640.c
-    ${PROJECT_SOURCE_DIR}/Core/Src/driver_ov2640_interface_template.c
 )
 
 # Add include paths
