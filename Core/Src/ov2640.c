@@ -28,6 +28,7 @@
 
 #include "ov2640.h"
 #include "stm32h7xx_hal_dcmi.h"
+#include "stm32h7xx_hal_dma.h"
 
 /**
  * Code debugging option
@@ -641,9 +642,9 @@ void OV2640_ResolutionConfiguration( short opt )
 #ifdef DEBUG
     my_printf( "Starting resolution choice \r\n" );
 #endif
-    // OV2640_Configuration( OV2640_JPEG_INIT );
-    // OV2640_Configuration( OV2640_YUV422 );
-    // OV2640_Configuration( OV2640_JPEG );
+    OV2640_Configuration( OV2640_JPEG_INIT );
+    OV2640_Configuration( OV2640_YUV422 );
+    OV2640_Configuration( OV2640_JPEG );
     HAL_Delay( 10 );
     SCCB_Write( 0xff, 0x01 );
     HAL_Delay( 10 );
@@ -927,8 +928,8 @@ void OV2640_StopDCMI( void )
  */
 void OV2640_CaptureSnapshot( uint32_t frameBuffer, int length )
 {
-    HAL_DCMI_Start_DMA( phdcmi, DCMI_MODE_SNAPSHOT, frameBuffer, length );
-    HAL_Delay( 600 );
+    auto d = HAL_DCMI_Start_DMA( phdcmi, DCMI_MODE_SNAPSHOT, frameBuffer, length );
+    HAL_Delay( 3000 );
     HAL_DCMI_Suspend( phdcmi );
     HAL_DCMI_Stop( phdcmi );
 }
