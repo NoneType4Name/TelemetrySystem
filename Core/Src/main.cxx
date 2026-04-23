@@ -19,9 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
-#include <sys/_intsup.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -70,7 +68,6 @@ void SystemClock_Config( void );
 static void MPU_Config( void );
 static void MX_GPIO_Init( void );
 static void MX_DMA_Init( void );
-static void MX_SDMMC1_SD_Init( void );
 static void MX_I2C1_Init( void );
 /* USER CODE BEGIN PFP */
 
@@ -276,10 +273,9 @@ const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
     { 0xff, 0xff } };
 
 // enum imageResolution imgRes = RES_320X240;
-uint16_t frameBuffer[ 240 * 240 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) ) { 0 };
-unsigned short mutex       = 0;
-uint32_t bufferPointer     = 0;
-unsigned short headerFound = 0;
+uint16_t frameBuffers[ 240 * 240 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+bool processFrame = false;
+bool frameBuffer { false };
 
 /* USER CODE END 0 */
 
@@ -392,20 +388,22 @@ int main( void )
 
     // SCCB_Write( 0xff, 0x00 );
     // HAL_Delay( 100 );
+    // auto d = HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
+
+    // OV2640_CaptureSnapshot( ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
+
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
+
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        if ( HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_13 ) )
+        if ( processFrame )
         {
             // bufferPointer = 0;
-            memset( &frameBuffer, 0, 240 * 240 * 2 );
-            OV2640_CaptureSnapshot( ( uint32_t ) &frameBuffer, 240 * 240 );
-            // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) &frameBuffer, 240 * 240 );
-            auto dd = HAL_DMA_GetError( &hdma_dcmi );
-            dd      = HAL_DCMI_GetState( &hdcmi );
+            // memset( &frameBuffers, 0, 240 * 240 * 2 );
 
             // while ( 1 )
             // {
@@ -464,21 +462,24 @@ int main( void )
             // } while ( 0 );
             // uint8_t data[ APP_TX_DATA_SIZE ] { 0 };
             uint8_t spliter[] { 'b', 'g', 'n' };
-            auto d = CDC_Transmit_FS( spliter, 3 );
-            HAL_Delay( 10 );
-            uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffer ) };
-            for ( size_t cN { 0 }; cN < 240 * 240 * 2 / APP_TX_DATA_SIZE; ++cN )
+            CDC_Transmit_FS( spliter, 3 );
+            HAL_Delay( 1 );
+            uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers ) };
+            for ( size_t cN { 0 }; cN < ( 240 * 240 * 2 + APP_TX_DATA_SIZE - 1 ) / APP_TX_DATA_SIZE; ++cN )
             {
                 // auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
-                auto d = CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
-                HAL_Delay( 100 );
+                CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
+                HAL_Delay( 2 );
             }
             CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * ( 240 * 240 / APP_TX_DATA_SIZE ) ], 512 );
-            HAL_Delay( 100 );
+            HAL_Delay( 1 );
             spliter[ 0 ] = 'e';
             spliter[ 1 ] = 'n';
             spliter[ 2 ] = 'd';
             CDC_Transmit_FS( spliter, 3 );
+            HAL_Delay( 1 );
+            // frameBuffer  = !frameBuffer;
+            processFrame = false;
         }
         /* USER CODE END WHILE */
 
@@ -568,7 +569,7 @@ void MX_DCMI_Init( void )
     hdcmi.Init.HSPolarity       = DCMI_HSPOLARITY_LOW;
     hdcmi.Init.CaptureRate      = DCMI_CR_ALL_FRAME;
     hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
-    hdcmi.Init.JPEGMode         = DCMI_JPEG_ENABLE;
+    hdcmi.Init.JPEGMode         = DCMI_JPEG_DISABLE;
     hdcmi.Init.ByteSelectMode   = DCMI_BSM_ALL;
     hdcmi.Init.ByteSelectStart  = DCMI_OEBS_ODD;
     hdcmi.Init.LineSelectMode   = DCMI_LSM_ALL;
@@ -633,7 +634,7 @@ static void MX_I2C1_Init( void )
  * @param None
  * @retval None
  */
-static void MX_SDMMC1_SD_Init( void )
+void MX_SDMMC1_SD_Init( void )
 {
     /* USER CODE BEGIN SDMMC1_Init 0 */
 
@@ -666,9 +667,9 @@ static void MX_DMA_Init( void )
     __HAL_RCC_DMA1_CLK_ENABLE();
 
     /* DMA interrupt init */
-    /* DMA1_Stream1_IRQn interrupt configuration */
-    HAL_NVIC_SetPriority( DMA1_Stream1_IRQn, 0, 0 );
-    HAL_NVIC_EnableIRQ( DMA1_Stream1_IRQn );
+    /* DMA1_Stream0_IRQn interrupt configuration */
+    HAL_NVIC_SetPriority( DMA1_Stream0_IRQn, 0, 0 );
+    HAL_NVIC_EnableIRQ( DMA1_Stream0_IRQn );
 }
 
 /**
@@ -744,6 +745,7 @@ static void MX_GPIO_Init( void )
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
+    processFrame = true;
 }
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
