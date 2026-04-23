@@ -71,6 +71,9 @@ static void MX_DMA_Init( void );
 static void MX_I2C1_Init( void );
 /* USER CODE BEGIN PFP */
 
+void HAL_DMA_HalfCpltCallback( DMA_HandleTypeDef * );
+void HAL_DMA_CpltCallback( DMA_HandleTypeDef * );
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -273,7 +276,7 @@ const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
     { 0xff, 0xff } };
 
 // enum imageResolution imgRes = RES_320X240;
-uint16_t frameBuffers[ 240 * 240 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 2 ][ 240 * 240 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 bool processFrame = false;
 bool frameBuffer { false };
 
@@ -290,6 +293,7 @@ int main( void )
     /* USER CODE END 1 */
 
     /* MPU Configuration--------------------------------------------------------*/
+
     MPU_Config();
 
     /* MCU Configuration--------------------------------------------------------*/
@@ -391,8 +395,10 @@ int main( void )
     // auto d = HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
 
     // OV2640_CaptureSnapshot( ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
-
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
+    HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_HALFCPLT_CB_ID, HAL_DMA_HalfCpltCallback );
+    HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
+    memset( &frameBuffers, 0, 240 * 240 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, 240 * 240 );
 
     /* USER CODE END 2 */
 
@@ -403,7 +409,6 @@ int main( void )
         if ( processFrame )
         {
             // bufferPointer = 0;
-            // memset( &frameBuffers, 0, 240 * 240 * 2 );
 
             // while ( 1 )
             // {
@@ -464,21 +469,21 @@ int main( void )
             uint8_t spliter[] { 'b', 'g', 'n' };
             CDC_Transmit_FS( spliter, 3 );
             HAL_Delay( 1 );
-            uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers ) };
-            for ( size_t cN { 0 }; cN < ( 240 * 240 * 2 + APP_TX_DATA_SIZE - 1 ) / APP_TX_DATA_SIZE; ++cN )
+            uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers[ frameBuffer ] ) };
+            size_t cN { 0 };
+            for ( ; cN < 240 * 240 * 2 / APP_TX_DATA_SIZE; ++cN )
             {
                 // auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
                 CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
                 HAL_Delay( 2 );
             }
-            CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * ( 240 * 240 / APP_TX_DATA_SIZE ) ], 512 );
+            CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 240 * 240 * 2 - cN * APP_TX_DATA_SIZE );
             HAL_Delay( 1 );
             spliter[ 0 ] = 'e';
             spliter[ 1 ] = 'n';
             spliter[ 2 ] = 'd';
             CDC_Transmit_FS( spliter, 3 );
             HAL_Delay( 1 );
-            // frameBuffer  = !frameBuffer;
             processFrame = false;
         }
         /* USER CODE END WHILE */
@@ -746,6 +751,19 @@ static void MX_GPIO_Init( void )
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
     processFrame = true;
+    frameBuffer  = 1u;
+}
+
+void HAL_DMA_HalfCpltCallback( DMA_HandleTypeDef *hdcmi )
+{
+    processFrame = true;
+    frameBuffer  = 0u;
+}
+
+void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )
+{
+    processFrame = true;
+    frameBuffer  = 1u;
 }
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
