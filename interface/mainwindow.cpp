@@ -32,8 +32,9 @@ void MainWindow::readSerialData()
     bytes.remove( 0, 3 );
     bytes.remove( bytes.size() - 4, 3 );
     auto d = bytes.size();
-    QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 240, 240, QImage::Format_RGB16 );
+    QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 300, 240, QImage::Format_RGB16 );
     ui->label->setPixmap( QPixmap::fromImage( image ) );
+    //ui->label->setScaledContents(true);
     bytes.clear();
 }
 void MainWindow::handleError( QSerialPort::SerialPortError error )

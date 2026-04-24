@@ -19,6 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal_dcmi.h"
+#include "stm32h7xx_hal_dma.h"
+#include "stm32h7xx_hal_dma_ex.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -43,6 +46,36 @@ extern "C"
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define VAL_SET( x, mask, rshift, lshift ) \
+    ( ( ( ( x ) >> rshift ) & mask ) << lshift )
+#define HSIZE                0x51 /* H_SIZE[7:0] (real/4) */
+#define HSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
+#define VSIZE                0x52 /* V_SIZE[7:0] (real/4) */
+#define VSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
+#define XOFFL                0x53 /* OFFSET_X[7:0] */
+#define XOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
+#define YOFFL                0x54 /* OFFSET_Y[7:0] */
+#define YOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
+#define VHYX                 0x55 /* Offset and size completion */
+#define VHYX_VSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 7 )
+#define VHYX_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 3 )
+#define VHYX_YOFF_SET( x )   VAL_SET( x, 0x3, 8, 4 )
+#define VHYX_XOFF_SET( x )   VAL_SET( x, 0x3, 8, 0 )
+#define DPRP                 0x56
+#define TEST                 0x57 /* Horizontal size completion */
+#define TEST_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 9 + 2 ), 7 )
+#define ZMOW                 0x5A /* Zoom: Out Width  OUTW[7:0] (real/4) */
+#define ZMOW_OUTW_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
+#define ZMOH                 0x5B /* Zoom: Out Height OUTH[7:0] (real/4) */
+#define ZMOH_OUTH_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
+#define ZMHH                 0x5C /* Zoom: Speed and H&W completion */
+#define ZMHH_ZSPEED_SET( x ) VAL_SET( x, 0x0F, 0, 4 )
+#define ZMHH_OUTH_SET( x )   VAL_SET( x, 0x1, ( 8 + 2 ), 2 )
+#define ZMHH_OUTW_SET( x )   VAL_SET( x, 0x3, ( 8 + 2 ), 0 )
+#define HSIZE8               0xC0 /* Image Horizontal Size HSIZE[10:3] */
+#define HSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
+#define VSIZE8               0xC1 /* Image Vertical Size VSIZE[10:3] */
+#define VSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,7 +104,6 @@ static void MX_DMA_Init( void );
 static void MX_I2C1_Init( void );
 /* USER CODE BEGIN PFP */
 
-void HAL_DMA_HalfCpltCallback( DMA_HandleTypeDef * );
 void HAL_DMA_CpltCallback( DMA_HandleTypeDef * );
 
 /* USER CODE END PFP */
@@ -276,8 +308,10 @@ const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
     { 0xff, 0xff } };
 
 // enum imageResolution imgRes = RES_320X240;
-uint16_t frameBuffers[ 2 ][ 240 * 240 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
-bool processFrame = false;
+#define WIDTH  300
+#define HEIGHT 240
+uint16_t frameBuffers[ 2 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+bool processFrame { false };
 bool frameBuffer { false };
 
 /* USER CODE END 0 */
@@ -323,43 +357,50 @@ int main( void )
     /* USER CODE BEGIN 2 */
     OV2640_Init( &hi2c1, &hdcmi );
     SCCB_Write( 0xFF, 0x01 );
-    SCCB_Write( 0x12, 0x80 ); // Software reset
+    SCCB_Write( 0x12, 0x80 );
     HAL_Delay( 50 );
     OV2640_Configuration( OV2640_RGB565_INIT );
     HAL_Delay( 10 );
     OV2640_Configuration( OV2640_RGB565_REG_TBL );
     HAL_Delay( 10 );
-
+    // SCCB_Write( HSIZE8, HSIZE8_SET( 800 / 4 ) );
+    // SCCB_Write( VSIZE8, VSIZE8_SET( 1200 / 4 ) );
+    // SCCB_Write( HSIZE, HSIZE_SET( 1600 / 4 / 2 ) );
+    // SCCB_Write( VSIZE, VSIZE_SET( 1200 / 4 / 2 ) );
+    // SCCB_Write( XOFFL, XOFFL_SET( 0 ) );
+    // SCCB_Write( YOFFL, YOFFL_SET( 0 ) );
+    // SCCB_Write( VHYX, VHYX_HSIZE_SET( WIDTH / 4 ) | VHYX_VSIZE_SET( HEIGHT / 4 ) | VHYX_XOFF_SET( 0 ) | VHYX_YOFF_SET( 0 ) );
+    // SCCB_Write( TEST, TEST_HSIZE_SET( WIDTH / 4 ) );
     unsigned int outh;
     unsigned int outw;
     unsigned char temp;
-    outw = 240 / 4;
-    outh = 240 / 4;
+    outw = WIDTH / 4;
+    outh = HEIGHT / 4;
     SCCB_Write( 0XFF, 0X00 );
     SCCB_Write( 0XE0, 0X04 );
-    SCCB_Write( 0X5A, outw & 0XFF ); // ����OUTW�ĵͰ�λ
-    SCCB_Write( 0X5B, outh & 0XFF ); // ����OUTH�ĵͰ�λ
+    SCCB_Write( 0X5A, outw & 0XFF );
+    SCCB_Write( 0X5B, outh & 0XFF );
     temp = ( outw >> 8 ) & 0X03;
     temp |= ( outh >> 6 ) & 0X04;
-    SCCB_Write( 0X5C, temp ); // ����OUTH/OUTW�ĸ�λ
+    SCCB_Write( 0X5C, temp );
     SCCB_Write( 0XE0, 0X00 );
 
     unsigned int hsize;
     unsigned int vsize;
-    hsize = 600 / 4;
+    hsize = 800 / 4;
     vsize = 600 / 4;
     SCCB_Write( 0XFF, 0X00 );
     SCCB_Write( 0XE0, 0X04 );
-    SCCB_Write( 0X51, hsize & 0XFF ); // ����H_SIZE�ĵͰ�λ
-    SCCB_Write( 0X52, vsize & 0XFF ); // ����V_SIZE�ĵͰ�λ
-    SCCB_Write( 0X53, 0 & 0XFF );     // ����offx�ĵͰ�λ
-    SCCB_Write( 0X54, 0 & 0XFF );     // ����offy�ĵͰ�λ
+    SCCB_Write( 0X51, hsize & 0XFF );
+    SCCB_Write( 0X52, vsize & 0XFF );
+    SCCB_Write( 0X53, 0 & 0XFF );
+    SCCB_Write( 0X54, 0 & 0XFF );
     temp = ( vsize >> 1 ) & 0X80;
     temp |= ( 0 >> 4 ) & 0X70;
     temp |= ( hsize >> 5 ) & 0X08;
     temp |= ( 0 >> 8 ) & 0X07;
-    SCCB_Write( 0X55, temp );                  // ����H_SIZE/V_SIZE/OFFX,OFFY�ĸ�λ
-    SCCB_Write( 0X57, ( hsize >> 2 ) & 0X80 ); // ����H_SIZE/V_SIZE/OFFX,OFFY�ĸ�λ
+    SCCB_Write( 0X55, temp );
+    SCCB_Write( 0X57, ( hsize >> 2 ) & 0X80 );
     SCCB_Write( 0XE0, 0X00 );
 
     // OV2640_Configuration( OV2640_320x240_RGB565 );
@@ -395,10 +436,9 @@ int main( void )
     // auto d = HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
 
     // OV2640_CaptureSnapshot( ( uint32_t ) &frameBuffers, 240 * 240 / 2 );
-    HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_HALFCPLT_CB_ID, HAL_DMA_HalfCpltCallback );
     HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, 240 * 240 );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, 240 * 240 );
+    memset( &frameBuffers, 0, WIDTH * HEIGHT * 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT );
 
     /* USER CODE END 2 */
 
@@ -471,13 +511,13 @@ int main( void )
             HAL_Delay( 1 );
             uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers[ frameBuffer ] ) };
             size_t cN { 0 };
-            for ( ; cN < 240 * 240 * 2 / APP_TX_DATA_SIZE; ++cN )
+            for ( ; cN < WIDTH * HEIGHT * 2 / APP_TX_DATA_SIZE; ++cN )
             {
                 // auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
                 CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
                 HAL_Delay( 2 );
             }
-            CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 240 * 240 * 2 - cN * APP_TX_DATA_SIZE );
+            CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], WIDTH * HEIGHT * 2 - cN * APP_TX_DATA_SIZE );
             HAL_Delay( 1 );
             spliter[ 0 ] = 'e';
             spliter[ 1 ] = 'n';
@@ -754,16 +794,10 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     frameBuffer  = 1u;
 }
 
-void HAL_DMA_HalfCpltCallback( DMA_HandleTypeDef *hdcmi )
-{
-    processFrame = true;
-    frameBuffer  = 0u;
-}
-
 void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )
 {
     processFrame = true;
-    frameBuffer  = 1u;
+    frameBuffer  = 0u;
 }
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
