@@ -311,8 +311,8 @@ const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
 #define WIDTH  300
 #define HEIGHT 240
 uint16_t frameBuffers[ 2 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
-bool processFrame { false };
-bool frameBuffer { false };
+size_t frameLen { 0 };
+uint8_t *curentFrameBuffer;
 
 /* USER CODE END 0 */
 
@@ -403,6 +403,10 @@ int main( void )
     SCCB_Write( 0X57, ( hsize >> 2 ) & 0X80 );
     SCCB_Write( 0XE0, 0X00 );
 
+    SCCB_Write( 0xFF, 0x01 );
+    SCCB_Write( 0x11, 0x0f ); // CLK = XVCLK / 16
+    SCCB_Write( 0XE0, 0X00 );
+
     // OV2640_Configuration( OV2640_320x240_RGB565 );
     // HAL_Delay( 10 );
     // OV2640_Brightness( Brightness2 );
@@ -446,86 +450,85 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        if ( processFrame )
-        {
-            // bufferPointer = 0;
+        // if ( frameLen )
+        // {
+        // bufferPointer = 0;
 
-            // while ( 1 )
-            // {
-            //     if ( headerFound == 0 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD8 )
-            //     {
-            //         headerFound = 1;
-            //     }
-            //     if ( headerFound == 1 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD9 )
-            //     {
-            //         bufferPointer = bufferPointer + 2;
-            //         headerFound   = 0;
-            //         break;
-            //     }
+        // while ( 1 )
+        // {
+        //     if ( headerFound == 0 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD8 )
+        //     {
+        //         headerFound = 1;
+        //     }
+        //     if ( headerFound == 1 && frameBuffer[ bufferPointer ] == 0xFF && frameBuffer[ bufferPointer + 1 ] == 0xD9 )
+        //     {
+        //         bufferPointer = bufferPointer + 2;
+        //         headerFound   = 0;
+        //         break;
+        //     }
 
-            //     if ( bufferPointer >= 1024 * 96 )
-            //     {
-            //         break;
-            //     }
-            //     bufferPointer++;
-            // }
-            // bufferPointer = 1024 * 96;
-            // FATFS FatFs;
-            // FIL Fil;
-            // FRESULT FR_Status;
-            // UINT WWC; // Read/Write Word Counter
-            // do
-            // {
-            // FR_Status = f_mount( &FatFs, SDPath, 1 );
-            // if ( FR_Status != FR_OK )
-            // {
-            //     break;
-            // }
-            // FR_Status = f_open( &Fil, "photo.jpeg", FA_WRITE | FA_CREATE_ALWAYS );
-            // if ( FR_Status != FR_OK )
-            // {
-            //     break;
-            // }
-            // while ( bufferPointer )
-            // {
-            //     uint16_t wrt;
-            //     if ( bufferPointer > 512 )
-            //     {
-            //         wrt = 512;
-            //         bufferPointer -= 512;
-            //     }
-            //     else
-            //     {
-            //         wrt           = bufferPointer;
-            //         bufferPointer = 0;
-            //     }
-            // f_write( &Fil, buffer, wrt, &WWC );
-            // buffer += wrt;
-            // }
-            // f_close( &Fil );
-            // f_mount( NULL, "", 0 );
-            // } while ( 0 );
-            // uint8_t data[ APP_TX_DATA_SIZE ] { 0 };
-            uint8_t spliter[] { 'b', 'g', 'n' };
-            CDC_Transmit_FS( spliter, 3 );
-            HAL_Delay( 1 );
-            uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers[ frameBuffer ] ) };
-            size_t cN { 0 };
-            for ( ; cN < WIDTH * HEIGHT * 2 / APP_TX_DATA_SIZE; ++cN )
-            {
-                // auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
-                CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
-                HAL_Delay( 2 );
-            }
-            CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], WIDTH * HEIGHT * 2 - cN * APP_TX_DATA_SIZE );
-            HAL_Delay( 1 );
-            spliter[ 0 ] = 'e';
-            spliter[ 1 ] = 'n';
-            spliter[ 2 ] = 'd';
-            CDC_Transmit_FS( spliter, 3 );
-            HAL_Delay( 1 );
-            processFrame = false;
-        }
+        //     if ( bufferPointer >= 1024 * 96 )
+        //     {
+        //         break;
+        //     }
+        //     bufferPointer++;
+        // }
+        // bufferPointer = 1024 * 96;
+        // FATFS FatFs;
+        // FIL Fil;
+        // FRESULT FR_Status;
+        // UINT WWC; // Read/Write Word Counter
+        // do
+        // {
+        // FR_Status = f_mount( &FatFs, SDPath, 1 );
+        // if ( FR_Status != FR_OK )
+        // {
+        //     break;
+        // }
+        // FR_Status = f_open( &Fil, "photo.jpeg", FA_WRITE | FA_CREATE_ALWAYS );
+        // if ( FR_Status != FR_OK )
+        // {
+        //     break;
+        // }
+        // while ( bufferPointer )
+        // {
+        //     uint16_t wrt;
+        //     if ( bufferPointer > 512 )
+        //     {
+        //         wrt = 512;
+        //         bufferPointer -= 512;
+        //     }
+        //     else
+        //     {
+        //         wrt           = bufferPointer;
+        //         bufferPointer = 0;
+        //     }
+        // f_write( &Fil, buffer, wrt, &WWC );
+        // buffer += wrt;
+        // }
+        // f_close( &Fil );
+        // f_mount( NULL, "", 0 );
+        // } while ( 0 );
+        // uint8_t data[ APP_TX_DATA_SIZE ] { 0 };
+        //     uint8_t spliter[] { 'b', 'g', 'n' };
+        //     CDC_Transmit_FS( spliter, 3 );
+        //     uint8_t *buffer { reinterpret_cast<uint8_t *>( &frameBuffers[ frameBuffer ] ) };
+        //     size_t cN { 0 };
+        //     for ( ; cN < WIDTH * HEIGHT * 2 / APP_TX_DATA_SIZE; ++cN )
+        //     {
+        //         // auto cSize { bufferPointer - APP_TX_DATA_SIZE * cN > APP_TX_DATA_SIZE ? APP_TX_DATA_SIZE : bufferPointer - APP_TX_DATA_SIZE * cN };
+        //         CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], 2048 );
+        //         HAL_Delay( 2 );
+        //     }
+        //     CDC_Transmit_FS( &buffer[ APP_TX_DATA_SIZE * cN ], WIDTH * HEIGHT * 2 - cN * APP_TX_DATA_SIZE );
+        //     HAL_Delay( 1 );
+        //     spliter[ 0 ] = 'e';
+        //     spliter[ 1 ] = 'n';
+        //     spliter[ 2 ] = 'd';
+        //     CDC_Transmit_FS( spliter, 3 );
+        //     HAL_Delay( 1 );
+        //     frameLen = false;
+        // }
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -790,14 +793,18 @@ static void MX_GPIO_Init( void )
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    processFrame = true;
-    frameBuffer  = 1u;
+    frameLen          = WIDTH * HEIGHT * 2;
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 1 ] );
+    uint8_t spliter[] { "bgn" };
+    auto d = CDC_Transmit_FS( spliter, 3 );
 }
 
 void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )
 {
-    processFrame = true;
-    frameBuffer  = 0u;
+    frameLen          = WIDTH * HEIGHT * 2;
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
+    uint8_t spliter[] { "bgn" };
+    CDC_Transmit_FS( spliter, 3 );
 }
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )

@@ -1,7 +1,8 @@
-*/
-!Core/
-!interface/
-!Core/**
+# */
+# !Core/
+# !interface/
+# !Core/**
+build/
 mx.scratch
 .settings
 CMakePresets.json
