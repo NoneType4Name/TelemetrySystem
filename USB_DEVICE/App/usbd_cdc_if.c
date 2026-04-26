@@ -31,7 +31,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
+uint8_t spliter[ 3 ] = { 'e', 'n', 'd' };
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -322,7 +322,6 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
     }
     else if ( curentFrameBuffer )
     {
-        uint8_t spliter[ 3 ] = "end";
         CDC_Transmit_FS( spliter, 3 );
         curentFrameBuffer = 0;
     }
