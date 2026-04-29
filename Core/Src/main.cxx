@@ -27,9 +27,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+// extern "C"
+// {
+// #include "ov2640.h"
+// }
+#include "driver_ov2640.h"
 extern "C"
 {
-#include "ov2640.h"
+#include "ov2640_interface.h"
 }
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal_gpio.h"
@@ -47,36 +52,36 @@ extern "C"
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define VAL_SET( x, mask, rshift, lshift ) \
-    ( ( ( ( x ) >> rshift ) & mask ) << lshift )
-#define HSIZE                0x51 /* H_SIZE[7:0] (real/4) */
-#define HSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
-#define VSIZE                0x52 /* V_SIZE[7:0] (real/4) */
-#define VSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
-#define XOFFL                0x53 /* OFFSET_X[7:0] */
-#define XOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
-#define YOFFL                0x54 /* OFFSET_Y[7:0] */
-#define YOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
-#define VHYX                 0x55 /* Offset and size completion */
-#define VHYX_VSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 7 )
-#define VHYX_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 3 )
-#define VHYX_YOFF_SET( x )   VAL_SET( x, 0x3, 8, 4 )
-#define VHYX_XOFF_SET( x )   VAL_SET( x, 0x3, 8, 0 )
-#define DPRP                 0x56
-#define TEST                 0x57 /* Horizontal size completion */
-#define TEST_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 9 + 2 ), 7 )
-#define ZMOW                 0x5A /* Zoom: Out Width  OUTW[7:0] (real/4) */
-#define ZMOW_OUTW_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
-#define ZMOH                 0x5B /* Zoom: Out Height OUTH[7:0] (real/4) */
-#define ZMOH_OUTH_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
-#define ZMHH                 0x5C /* Zoom: Speed and H&W completion */
-#define ZMHH_ZSPEED_SET( x ) VAL_SET( x, 0x0F, 0, 4 )
-#define ZMHH_OUTH_SET( x )   VAL_SET( x, 0x1, ( 8 + 2 ), 2 )
-#define ZMHH_OUTW_SET( x )   VAL_SET( x, 0x3, ( 8 + 2 ), 0 )
-#define HSIZE8               0xC0 /* Image Horizontal Size HSIZE[10:3] */
-#define HSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
-#define VSIZE8               0xC1 /* Image Vertical Size VSIZE[10:3] */
-#define VSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
+// #define VAL_SET( x, mask, rshift, lshift ) \
+//     ( ( ( ( x ) >> rshift ) & mask ) << lshift )
+// #define HSIZE                0x51 /* H_SIZE[7:0] (real/4) */
+// #define HSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
+// #define VSIZE                0x52 /* V_SIZE[7:0] (real/4) */
+// #define VSIZE_SET( x )       VAL_SET( x, 0xFF, 2, 0 )
+// #define XOFFL                0x53 /* OFFSET_X[7:0] */
+// #define XOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
+// #define YOFFL                0x54 /* OFFSET_Y[7:0] */
+// #define YOFFL_SET( x )       VAL_SET( x, 0xFF, 0, 0 )
+// #define VHYX                 0x55 /* Offset and size completion */
+// #define VHYX_VSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 7 )
+// #define VHYX_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 8 + 2 ), 3 )
+// #define VHYX_YOFF_SET( x )   VAL_SET( x, 0x3, 8, 4 )
+// #define VHYX_XOFF_SET( x )   VAL_SET( x, 0x3, 8, 0 )
+// #define DPRP                 0x56
+// #define TEST                 0x57 /* Horizontal size completion */
+// #define TEST_HSIZE_SET( x )  VAL_SET( x, 0x1, ( 9 + 2 ), 7 )
+// #define ZMOW                 0x5A /* Zoom: Out Width  OUTW[7:0] (real/4) */
+// #define ZMOW_OUTW_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
+// #define ZMOH                 0x5B /* Zoom: Out Height OUTH[7:0] (real/4) */
+// #define ZMOH_OUTH_SET( x )   VAL_SET( x, 0xFF, 2, 0 )
+// #define ZMHH                 0x5C /* Zoom: Speed and H&W completion */
+// #define ZMHH_ZSPEED_SET( x ) VAL_SET( x, 0x0F, 0, 4 )
+// #define ZMHH_OUTH_SET( x )   VAL_SET( x, 0x1, ( 8 + 2 ), 2 )
+// #define ZMHH_OUTW_SET( x )   VAL_SET( x, 0x3, ( 8 + 2 ), 0 )
+// #define HSIZE8               0xC0 /* Image Horizontal Size HSIZE[10:3] */
+// #define HSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
+// #define VSIZE8               0xC1 /* Image Vertical Size VSIZE[10:3] */
+// #define VSIZE8_SET( x )      VAL_SET( x, 0xFF, 3, 0 )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -111,206 +116,207 @@ void HAL_DMA_CpltCallback( DMA_HandleTypeDef * );
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-const unsigned char OV2640_RGB565_INIT[][ 2 ] = {
-    { 0xff, 0x00 },
-    { 0x2c, 0xff },
-    { 0x2e, 0xdf },
-    { 0xff, 0x01 },
-    { 0x3c, 0x32 },
-    { 0x11, 0x00 },
-    { 0x09, 0x02 },
-    { 0x04, 0xD8 },
-    { 0x13, 0xe5 },
-    { 0x14, 0x48 },
-    { 0x2c, 0x0c },
-    { 0x33, 0x78 },
-    { 0x3a, 0x33 },
-    { 0x3b, 0xfB },
-    { 0x3e, 0x00 },
-    { 0x43, 0x11 },
-    { 0x16, 0x10 },
-    { 0x39, 0x92 },
-    { 0x35, 0xda },
-    { 0x22, 0x1a },
-    { 0x37, 0xc3 },
-    { 0x23, 0x00 },
-    { 0x34, 0xc0 },
-    { 0x36, 0x1a },
-    { 0x06, 0x88 },
-    { 0x07, 0xc0 },
-    { 0x0d, 0x87 },
-    { 0x0e, 0x41 },
-    { 0x4c, 0x00 },
-    { 0x48, 0x00 },
-    { 0x5B, 0x00 },
-    { 0x42, 0x03 },
-    { 0x4a, 0x81 },
-    { 0x21, 0x99 },
-    { 0x24, 0x40 },
-    { 0x25, 0x38 },
-    { 0x26, 0x82 },
-    { 0x5c, 0x00 },
-    { 0x63, 0x00 },
-    { 0x46, 0x22 },
-    { 0x0c, 0x3c },
-    { 0x61, 0x70 },
-    { 0x62, 0x80 },
-    { 0x7c, 0x05 },
-    { 0x20, 0x80 },
-    { 0x28, 0x30 },
-    { 0x6c, 0x00 },
-    { 0x6d, 0x80 },
-    { 0x6e, 0x00 },
-    { 0x70, 0x02 },
-    { 0x71, 0x94 },
-    { 0x73, 0xc1 },
-    { 0x3d, 0x34 },
-    { 0x5a, 0x57 },
-    { 0x12, 0x40 },
-    { 0x17, 0x11 },
-    { 0x18, 0x43 },
-    { 0x19, 0x00 },
-    { 0x1a, 0x4b },
-    { 0x32, 0x09 },
-    { 0x37, 0xc0 },
-    { 0x4f, 0xca },
-    { 0x50, 0xa8 },
-    { 0x5a, 0x23 },
-    { 0x6d, 0x00 },
-    { 0x3d, 0x38 },
-    { 0xff, 0x00 },
-    { 0xe5, 0x7f },
-    { 0xf9, 0xc0 },
-    { 0x41, 0x24 },
-    { 0xe0, 0x14 },
-    { 0x76, 0xff },
-    { 0x33, 0xa0 },
-    { 0x42, 0x20 },
-    { 0x43, 0x18 },
-    { 0x4c, 0x00 },
-    { 0x87, 0xd5 },
-    { 0x88, 0x3f },
-    { 0xd7, 0x03 },
-    { 0xd9, 0x10 },
-    { 0xd3, 0x82 },
-    { 0xc8, 0x08 },
-    { 0xc9, 0x80 },
-    { 0x7c, 0x00 },
-    { 0x7d, 0x00 },
-    { 0x7c, 0x03 },
-    { 0x7d, 0x48 },
-    { 0x7d, 0x48 },
-    { 0x7c, 0x08 },
-    { 0x7d, 0x20 },
-    { 0x7d, 0x10 },
-    { 0x7d, 0x0e },
-    { 0x90, 0x00 },
-    { 0x91, 0x0e },
-    { 0x91, 0x1a },
-    { 0x91, 0x31 },
-    { 0x91, 0x5a },
-    { 0x91, 0x69 },
-    { 0x91, 0x75 },
-    { 0x91, 0x7e },
-    { 0x91, 0x88 },
-    { 0x91, 0x8f },
-    { 0x91, 0x96 },
-    { 0x91, 0xa3 },
-    { 0x91, 0xaf },
-    { 0x91, 0xc4 },
-    { 0x91, 0xd7 },
-    { 0x91, 0xe8 },
-    { 0x91, 0x20 },
-    { 0x92, 0x00 },
-    { 0x93, 0x06 },
-    { 0x93, 0xe3 },
-    { 0x93, 0x05 },
-    { 0x93, 0x05 },
-    { 0x93, 0x00 },
-    { 0x93, 0x04 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x93, 0x00 },
-    { 0x96, 0x00 },
-    { 0x97, 0x08 },
-    { 0x97, 0x19 },
-    { 0x97, 0x02 },
-    { 0x97, 0x0c },
-    { 0x97, 0x24 },
-    { 0x97, 0x30 },
-    { 0x97, 0x28 },
-    { 0x97, 0x26 },
-    { 0x97, 0x02 },
-    { 0x97, 0x98 },
-    { 0x97, 0x80 },
-    { 0x97, 0x00 },
-    { 0x97, 0x00 },
-    { 0xc3, 0xed },
-    { 0xa4, 0x00 },
-    { 0xa8, 0x00 },
-    { 0xc5, 0x11 },
-    { 0xc6, 0x51 },
-    { 0xbf, 0x80 },
-    { 0xc7, 0x10 },
-    { 0xb6, 0x66 },
-    { 0xb8, 0xA5 },
-    { 0xb7, 0x64 },
-    { 0xb9, 0x7C },
-    { 0xb3, 0xaf },
-    { 0xb4, 0x97 },
-    { 0xb5, 0xFF },
-    { 0xb0, 0xC5 },
-    { 0xb1, 0x94 },
-    { 0xb2, 0x0f },
-    { 0xc4, 0x5c },
-    { 0xc0, 0x64 },
-    { 0xc1, 0x4B },
-    { 0x8c, 0x00 },
-    { 0x86, 0x3D },
-    { 0x50, 0x00 },
-    { 0x51, 0xC8 },
-    { 0x52, 0x96 },
-    { 0x53, 0x00 },
-    { 0x54, 0x00 },
-    { 0x55, 0x00 },
-    { 0x5a, 0xC8 },
-    { 0x5b, 0x96 },
-    { 0x5c, 0x00 },
-    { 0xd3, 0x04 },
-    { 0xc3, 0xed },
-    { 0x7f, 0x00 },
-    { 0xda, 0x09 },
-    { 0xe5, 0x1f },
-    { 0xe1, 0x67 },
-    { 0xe0, 0x00 },
-    { 0xdd, 0x7f },
-    { 0x05, 0x00 },
-    { 0xff, 0xff } };
+// const unsigned char OV2640_RGB565_INIT[][ 2 ] = {
+//     { 0xff, 0x00 },
+//     { 0x2c, 0xff },
+//     { 0x2e, 0xdf },
+//     { 0xff, 0x01 },
+//     { 0x3c, 0x32 },
+//     { 0x11, 0x00 },
+//     { 0x09, 0x02 },
+//     { 0x04, 0xD8 },
+//     { 0x13, 0xe5 },
+//     { 0x14, 0x48 },
+//     { 0x2c, 0x0c },
+//     { 0x33, 0x78 },
+//     { 0x3a, 0x33 },
+//     { 0x3b, 0xfB },
+//     { 0x3e, 0x00 },
+//     { 0x43, 0x11 },
+//     { 0x16, 0x10 },
+//     { 0x39, 0x92 },
+//     { 0x35, 0xda },
+//     { 0x22, 0x1a },
+//     { 0x37, 0xc3 },
+//     { 0x23, 0x00 },
+//     { 0x34, 0xc0 },
+//     { 0x36, 0x1a },
+//     { 0x06, 0x88 },
+//     { 0x07, 0xc0 },
+//     { 0x0d, 0x87 },
+//     { 0x0e, 0x41 },
+//     { 0x4c, 0x00 },
+//     { 0x48, 0x00 },
+//     { 0x5B, 0x00 },
+//     { 0x42, 0x03 },
+//     { 0x4a, 0x81 },
+//     { 0x21, 0x99 },
+//     { 0x24, 0x40 },
+//     { 0x25, 0x38 },
+//     { 0x26, 0x82 },
+//     { 0x5c, 0x00 },
+//     { 0x63, 0x00 },
+//     { 0x46, 0x22 },
+//     { 0x0c, 0x3c },
+//     { 0x61, 0x70 },
+//     { 0x62, 0x80 },
+//     { 0x7c, 0x05 },
+//     { 0x20, 0x80 },
+//     { 0x28, 0x30 },
+//     { 0x6c, 0x00 },
+//     { 0x6d, 0x80 },
+//     { 0x6e, 0x00 },
+//     { 0x70, 0x02 },
+//     { 0x71, 0x94 },
+//     { 0x73, 0xc1 },
+//     { 0x3d, 0x34 },
+//     { 0x5a, 0x57 },
+//     { 0x12, 0x40 },
+//     { 0x17, 0x11 },
+//     { 0x18, 0x43 },
+//     { 0x19, 0x00 },
+//     { 0x1a, 0x4b },
+//     { 0x32, 0x09 },
+//     { 0x37, 0xc0 },
+//     { 0x4f, 0xca },
+//     { 0x50, 0xa8 },
+//     { 0x5a, 0x23 },
+//     { 0x6d, 0x00 },
+//     { 0x3d, 0x38 },
+//     { 0xff, 0x00 },
+//     { 0xe5, 0x7f },
+//     { 0xf9, 0xc0 },
+//     { 0x41, 0x24 },
+//     { 0xe0, 0x14 },
+//     { 0x76, 0xff },
+//     { 0x33, 0xa0 },
+//     { 0x42, 0x20 },
+//     { 0x43, 0x18 },
+//     { 0x4c, 0x00 },
+//     { 0x87, 0xd5 },
+//     { 0x88, 0x3f },
+//     { 0xd7, 0x03 },
+//     { 0xd9, 0x10 },
+//     { 0xd3, 0x82 },
+//     { 0xc8, 0x08 },
+//     { 0xc9, 0x80 },
+//     { 0x7c, 0x00 },
+//     { 0x7d, 0x00 },
+//     { 0x7c, 0x03 },
+//     { 0x7d, 0x48 },
+//     { 0x7d, 0x48 },
+//     { 0x7c, 0x08 },
+//     { 0x7d, 0x20 },
+//     { 0x7d, 0x10 },
+//     { 0x7d, 0x0e },
+//     { 0x90, 0x00 },
+//     { 0x91, 0x0e },
+//     { 0x91, 0x1a },
+//     { 0x91, 0x31 },
+//     { 0x91, 0x5a },
+//     { 0x91, 0x69 },
+//     { 0x91, 0x75 },
+//     { 0x91, 0x7e },
+//     { 0x91, 0x88 },
+//     { 0x91, 0x8f },
+//     { 0x91, 0x96 },
+//     { 0x91, 0xa3 },
+//     { 0x91, 0xaf },
+//     { 0x91, 0xc4 },
+//     { 0x91, 0xd7 },
+//     { 0x91, 0xe8 },
+//     { 0x91, 0x20 },
+//     { 0x92, 0x00 },
+//     { 0x93, 0x06 },
+//     { 0x93, 0xe3 },
+//     { 0x93, 0x05 },
+//     { 0x93, 0x05 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x04 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x93, 0x00 },
+//     { 0x96, 0x00 },
+//     { 0x97, 0x08 },
+//     { 0x97, 0x19 },
+//     { 0x97, 0x02 },
+//     { 0x97, 0x0c },
+//     { 0x97, 0x24 },
+//     { 0x97, 0x30 },
+//     { 0x97, 0x28 },
+//     { 0x97, 0x26 },
+//     { 0x97, 0x02 },
+//     { 0x97, 0x98 },
+//     { 0x97, 0x80 },
+//     { 0x97, 0x00 },
+//     { 0x97, 0x00 },
+//     { 0xc3, 0xed },
+//     { 0xa4, 0x00 },
+//     { 0xa8, 0x00 },
+//     { 0xc5, 0x11 },
+//     { 0xc6, 0x51 },
+//     { 0xbf, 0x80 },
+//     { 0xc7, 0x10 },
+//     { 0xb6, 0x66 },
+//     { 0xb8, 0xA5 },
+//     { 0xb7, 0x64 },
+//     { 0xb9, 0x7C },
+//     { 0xb3, 0xaf },
+//     { 0xb4, 0x97 },
+//     { 0xb5, 0xFF },
+//     { 0xb0, 0xC5 },
+//     { 0xb1, 0x94 },
+//     { 0xb2, 0x0f },
+//     { 0xc4, 0x5c },
+//     { 0xc0, 0x64 },
+//     { 0xc1, 0x4B },
+//     { 0x8c, 0x00 },
+//     { 0x86, 0x3D },
+//     { 0x50, 0x00 },
+//     { 0x51, 0xC8 },
+//     { 0x52, 0x96 },
+//     { 0x53, 0x00 },
+//     { 0x54, 0x00 },
+//     { 0x55, 0x00 },
+//     { 0x5a, 0xC8 },
+//     { 0x5b, 0x96 },
+//     { 0x5c, 0x00 },
+//     { 0xd3, 0x04 },
+//     { 0xc3, 0xed },
+//     { 0x7f, 0x00 },
+//     { 0xda, 0x09 },
+//     { 0xe5, 0x1f },
+//     { 0xe1, 0x67 },
+//     { 0xe0, 0x00 },
+//     { 0xdd, 0x7f },
+//     { 0x05, 0x00 },
+//     { 0xff, 0xff } };
 
-const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
-    { 0xFF, 0x00 },
-    { 0xDA, 0x09 },
-    { 0xD7, 0x03 },
-    { 0xDF, 0x02 },
-    { 0x33, 0xa0 },
-    { 0x3C, 0x00 },
-    { 0xe1, 0x67 },
-    { 0xff, 0x01 },
-    { 0xe0, 0x00 },
-    { 0xe1, 0x00 },
-    { 0xe5, 0x00 },
-    { 0xd7, 0x00 },
-    { 0xda, 0x00 },
-    { 0xe0, 0x00 },
-    { 0xff, 0xff } };
+// const unsigned char OV2640_RGB565_REG_TBL[][ 2 ] {
+//     { 0xFF, 0x00 },
+//     { 0xDA, 0x09 },
+//     { 0xD7, 0x03 },
+//     { 0xDF, 0x02 },
+//     { 0x33, 0xa0 },
+//     { 0x3C, 0x00 },
+//     { 0xe1, 0x67 },
+//     { 0xff, 0x01 },
+//     { 0xe0, 0x00 },
+//     { 0xe1, 0x00 },
+//     { 0xe5, 0x00 },
+//     { 0xd7, 0x00 },
+//     { 0xda, 0x00 },
+//     { 0xe0, 0x00 },
+//     { 0xff, 0xff } };
 
 // enum imageResolution imgRes = RES_320X240;
 #define WIDTH  300
 #define HEIGHT 240
+static ov2640_handle_t ov2640_handle; /**< ov2640 handle */
 uint16_t frameBuffers[ 2 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
@@ -324,7 +330,19 @@ uint8_t *curentFrameBuffer;
 int main( void )
 {
     /* USER CODE BEGIN 1 */
-
+    DRIVER_OV2640_LINK_INIT( &ov2640_handle, ov2640_handle_t );
+    DRIVER_OV2640_LINK_SCCB_INIT( &ov2640_handle, ov2640_interface_sccb_init );
+    DRIVER_OV2640_LINK_SCCB_DEINIT( &ov2640_handle, ov2640_interface_sccb_deinit );
+    DRIVER_OV2640_LINK_SCCB_READ( &ov2640_handle, ov2640_interface_sccb_read );
+    DRIVER_OV2640_LINK_SCCB_WRITE( &ov2640_handle, ov2640_interface_sccb_write );
+    DRIVER_OV2640_LINK_POWER_DOWN_INIT( &ov2640_handle, ov2640_interface_power_down_init );
+    DRIVER_OV2640_LINK_POWER_DOWN_DEINIT( &ov2640_handle, ov2640_interface_power_down_deinit );
+    DRIVER_OV2640_LINK_POWER_DOWN_WRITE( &ov2640_handle, ov2640_interface_power_down_write );
+    DRIVER_OV2640_LINK_RESET_INIT( &ov2640_handle, ov2640_interface_reset_init );
+    DRIVER_OV2640_LINK_RESET_DEINIT( &ov2640_handle, ov2640_interface_reset_deinit );
+    DRIVER_OV2640_LINK_RESET_WRITE( &ov2640_handle, ov2640_interface_reset_write );
+    DRIVER_OV2640_LINK_DELAY_MS( &ov2640_handle, ov2640_interface_delay_ms );
+    DRIVER_OV2640_LINK_DEBUG_PRINT( &ov2640_handle, ov2640_interface_debug_print );
     /* USER CODE END 1 */
 
     /* MPU Configuration--------------------------------------------------------*/
@@ -356,14 +374,37 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
-    OV2640_Init( &hi2c1, &hdcmi );
-    SCCB_Write( 0xFF, 0x01 );
-    SCCB_Write( 0x12, 0x80 );
-    HAL_Delay( 50 );
-    OV2640_Configuration( OV2640_RGB565_INIT );
-    HAL_Delay( 10 );
-    OV2640_Configuration( OV2640_RGB565_REG_TBL );
-    HAL_Delay( 10 );
+
+    // ov2640 init
+    ov2640_init( &ov2640_handle );
+
+    // configure RGB565 mode
+    ov2640_table_init( &ov2640_handle );
+    ov2640_table_rgb565_init( &ov2640_handle );
+
+    // configure resolution
+    ov2640_set_resolution( &ov2640_handle, OV2640_RESOLUTION_UXGA );
+
+    // configure image size
+    // set output size
+    ov2640_set_output_width( &ov2640_handle, WIDTH / 4 );
+    ov2640_set_output_height( &ov2640_handle, HEIGHT / 4 );
+
+    // set image size
+    ov2640_set_image_horizontal( &ov2640_handle, 800 );
+    ov2640_set_image_vertical( &ov2640_handle, 600 );
+
+    // enable AGC and AEC
+    // ov2640_set_agc_control( &ov2640_handle, OV2640_CONTROL_AUTO );
+    // ov2640_set_exposure_control( &ov2640_handle, OV2640_CONTROL_AUTO );
+
+    // SCCB_Write( 0xFF, 0x01 );
+    // SCCB_Write( 0x12, 0x80 );
+    // HAL_Delay( 50 );
+    // OV2640_Configuration( OV2640_RGB565_INIT );
+    // HAL_Delay( 10 );
+    // OV2640_Configuration( OV2640_RGB565_REG_TBL );
+    // HAL_Delay( 10 );
     // SCCB_Write( HSIZE8, HSIZE8_SET( 800 / 4 ) );
     // SCCB_Write( VSIZE8, VSIZE8_SET( 1200 / 4 ) );
     // SCCB_Write( HSIZE, HSIZE_SET( 1600 / 4 / 2 ) );
@@ -372,71 +413,77 @@ int main( void )
     // SCCB_Write( YOFFL, YOFFL_SET( 0 ) );
     // SCCB_Write( VHYX, VHYX_HSIZE_SET( WIDTH / 4 ) | VHYX_VSIZE_SET( HEIGHT / 4 ) | VHYX_XOFF_SET( 0 ) | VHYX_YOFF_SET( 0 ) );
     // SCCB_Write( TEST, TEST_HSIZE_SET( WIDTH / 4 ) );
-    unsigned int outh;
-    unsigned int outw;
-    unsigned char temp;
-    outw = WIDTH / 4;
-    outh = HEIGHT / 4;
-    SCCB_Write( 0XFF, 0X00 );
-    SCCB_Write( 0XE0, 0X04 );
-    SCCB_Write( 0X5A, outw & 0XFF );
-    SCCB_Write( 0X5B, outh & 0XFF );
-    temp = ( outw >> 8 ) & 0X03;
-    temp |= ( outh >> 6 ) & 0X04;
-    SCCB_Write( 0X5C, temp );
-    SCCB_Write( 0XE0, 0X00 );
+    // unsigned int outh;
+    // unsigned int outw;
+    // unsigned char temp;
+    // outw = WIDTH / 4;
+    // outh = HEIGHT / 4;
+    // SCCB_Write( 0XFF, 0X00 );
+    // SCCB_Write( 0XE0, 0X04 );
+    // SCCB_Write( 0X5A, outw & 0XFF );
+    // SCCB_Write( 0X5B, outh & 0XFF );
+    // temp = ( outw >> 8 ) & 0X03;
+    // temp |= ( outh >> 6 ) & 0X04;
+    // SCCB_Write( 0X5C, temp );
+    // SCCB_Write( 0XE0, 0X00 );
 
-    unsigned int hsize;
-    unsigned int vsize;
-    hsize = 800 / 4;
-    vsize = 600 / 4;
-    SCCB_Write( 0XFF, 0X00 );
-    SCCB_Write( 0XE0, 0X04 );
-    SCCB_Write( 0X51, hsize & 0XFF );
-    SCCB_Write( 0X52, vsize & 0XFF );
-    SCCB_Write( 0X53, 0 & 0XFF );
-    SCCB_Write( 0X54, 0 & 0XFF );
-    temp = ( vsize >> 1 ) & 0X80;
-    temp |= ( 0 >> 4 ) & 0X70;
-    temp |= ( hsize >> 5 ) & 0X08;
-    temp |= ( 0 >> 8 ) & 0X07;
-    SCCB_Write( 0X55, temp );
-    SCCB_Write( 0X57, ( hsize >> 2 ) & 0X80 );
-    SCCB_Write( 0XE0, 0X00 );
+    // unsigned int hsize;
+    // unsigned int vsize;
+    // hsize = 800 / 4;
+    // vsize = 600 / 4;
+    // SCCB_Write( 0XFF, 0X00 );
+    // SCCB_Write( 0XE0, 0X04 );
+    // SCCB_Write( 0X51, hsize & 0XFF );
+    // SCCB_Write( 0X52, vsize & 0XFF );
+    // SCCB_Write( 0X53, 0 & 0XFF );
+    // SCCB_Write( 0X54, 0 & 0XFF );
+    // temp = ( vsize >> 1 ) & 0X80;
+    // temp |= ( 0 >> 4 ) & 0X70;
+    // temp |= ( hsize >> 5 ) & 0X08;
+    // temp |= ( 0 >> 8 ) & 0X07;
+    // SCCB_Write( 0X55, temp );
+    // SCCB_Write( 0X57, ( hsize >> 2 ) & 0X80 );
+    // SCCB_Write( 0XE0, 0X00 );
 
-    SCCB_Write( 0xFF, 0x01 );
-    SCCB_Write( 0x11, 0x04 ); // CLK = XVCLK / 5
-    SCCB_Write( 0XE0, 0X00 );
+    // SCCB_Write( 0xFF, 0x01 );
+    // SCCB_Write( 0x11, 0x04 ); // CLK = XVCLK / 5
+    // SCCB_Write( 0XE0, 0X00 );
+    // ov2640_set_clock_divider( &ov2640_handle, 0x04 );
+    // ov2640_set_brightness( &ov2640_handle, OV2640_BRIGHTNESS_POSITIVE_1 );
+    // ov2640_set_contrast( &ov2640_handle, OV2640_CONTRAST_POSITIVE_2 );
+    // ov2640_set_color_saturation( &ov2640_handle, OV2640_COLOR_SATURATION_POSITIVE_2 );
+    // ov2640_set_awb( &ov2640_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_awb_gain( &ov2640_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_band_filter( &ov2640_handle, OV2640_BOOL_FALSE );
+    // OV2640_Brightness( Brightness2 );
+    // HAL_Delay( 10 );
 
-    OV2640_Brightness( Brightness2 );
-    HAL_Delay( 10 );
+    // OV2640_Contrast( Contrast2 );
+    // HAL_Delay( 10 );
 
-    OV2640_Contrast( Contrast2 );
-    HAL_Delay( 10 );
+    // OV2640_Saturation( Saturation2 );
+    // HAL_Delay( 10 );
 
-    OV2640_Saturation( Saturation2 );
-    HAL_Delay( 10 );
+    // SCCB_Write( 0xFF, 0x00 ); // DSP bank
 
-    SCCB_Write( 0xFF, 0x00 ); // DSP bank
+    // SCCB_Write( 0xC3, 0xFD ); // CTRL1: AWB = 0
 
-    SCCB_Write( 0xC3, 0xFD ); // CTRL1: AWB = 0
+    // SCCB_Write( 0xff, 0x01 );
 
-    SCCB_Write( 0xff, 0x01 );
+    // // auto exp и AGC (COM8)
+    // SCCB_Write( 0x13, 0xff ); // COM8: enable AGC and AEC
 
-    // auto exp и AGC (COM8)
-    SCCB_Write( 0x13, 0xff ); // COM8: enable AGC and AEC
+    // // min amplify AGC (COM9)
+    // SCCB_Write( 0x14, 0xe0 ); // COM9: 128x max amp
 
-    // min amplify AGC (COM9)
-    SCCB_Write( 0x14, 0xe0 ); // COM9: 128x max amp
+    // // exp time (AEC)
+    // SCCB_Write( 0x45, 0x3f );
+    // SCCB_Write( 0x10, 0xff );
 
-    // exp time (AEC)
-    SCCB_Write( 0x45, 0x3f );
-    SCCB_Write( 0x10, 0xff );
+    // SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF
 
-    SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF
-
-    SCCB_Write( 0xff, 0x00 );
-    HAL_Delay( 100 );
+    // SCCB_Write( 0xff, 0x00 );
+    // HAL_Delay( 100 );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
     memset( &frameBuffers, 0, WIDTH * HEIGHT * 2 );
