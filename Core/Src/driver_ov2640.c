@@ -8471,7 +8471,8 @@ uint8_t ov2640_set_raw( ov2640_handle_t *handle, ov2640_bool_t enable )
         return 1; /* return error */
     }
 
-    return 0; /* success return 0 */
+    res = a_ov2640_dsp_read( handle, OV2640_REG_DSP_BANK_CTRL0, &prev ); /* read ctrl0 */
+    return 0;                                                            /* success return 0 */
 }
 
 /**

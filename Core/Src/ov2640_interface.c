@@ -60,32 +60,32 @@ uint8_t ov2640_interface_sccb_write( uint8_t addr, uint8_t reg, uint8_t *buf, ui
 
 uint8_t ov2640_interface_power_down_init( void )
 {
-    GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+    // GPIO_InitTypeDef GPIO_InitStruct = { 0 };
 
-    __HAL_RCC_GPIOG_CLK_ENABLE();
+    // __HAL_RCC_GPIOG_CLK_ENABLE();
 
-    GPIO_InitStruct.Pin   = DCMI_PWDN_Pin;
-    GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull  = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init( DCMI_PWDN_GPIO_Port, &GPIO_InitStruct );
+    // GPIO_InitStruct.Pin   = DCMI_PWDN_Pin;
+    // GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+    // GPIO_InitStruct.Pull  = GPIO_NOPULL;
+    // GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    // HAL_GPIO_Init( DCMI_PWDN_GPIO_Port, &GPIO_InitStruct );
 
-    /* Default: power up (low) */
-    HAL_GPIO_WritePin( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin, GPIO_PIN_RESET );
+    // /* Default: power up (low) */
+    // HAL_GPIO_WritePin( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin, GPIO_PIN_RESET );
 
     return 0;
 }
 
 uint8_t ov2640_interface_power_down_deinit( void )
 {
-    HAL_GPIO_DeInit( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin );
+    // HAL_GPIO_DeInit( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin );
     return 0;
 }
 
 uint8_t ov2640_interface_power_down_write( uint8_t level )
 {
-    HAL_GPIO_WritePin( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin,
-                       ( level != 0 ) ? GPIO_PIN_SET : GPIO_PIN_RESET );
+    // HAL_GPIO_WritePin( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin,
+    //                    ( level != 0 ) ? GPIO_PIN_SET : GPIO_PIN_RESET );
     return 0;
 }
 
@@ -116,13 +116,13 @@ uint8_t ov2640_interface_hardware_reset( ov2640_handle_t *handle )
         return 1;
     }
 
-    /* Power down */
-    ov2640_interface_power_down_write( 1 );
-    ov2640_interface_delay_ms( 50 );
+    // /* Power down */
+    // ov2640_interface_power_down_write( 1 );
+    // ov2640_interface_delay_ms( 50 );
 
-    /* Power up */
-    ov2640_interface_power_down_write( 0 );
-    ov2640_interface_delay_ms( 50 );
+    // /* Power up */
+    // ov2640_interface_power_down_write( 0 );
+    // ov2640_interface_delay_ms( 50 );
 
     return 0;
 }

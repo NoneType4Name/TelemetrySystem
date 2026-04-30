@@ -59,9 +59,9 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER               0x00                             /**< div 0 */
 #define OV2640_BASIC_DEFAULT_MODE                        OV2640_MODE_NORMAL               /**< normal mode */
 #define OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP       OV2640_BOOL_FALSE                /**< disable power reset remap */
-#define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE                OV2640_OUTPUT_DRIVE_4_CAPABILITY /**< 4 capability */
-#define OV2640_BASIC_DEFAULT_HORIZONTAL_MIRROR           OV2640_BOOL_FALSE                /**< enable horizontal mirror */
-#define OV2640_BASIC_DEFAULT_VERTICAL_FLIP               OV2640_BOOL_FALSE                /**< enable vertical flip */
+#define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE                OV2640_OUTPUT_DRIVE_4_CAPABILITY /**< 2 capability */
+#define OV2640_BASIC_DEFAULT_HORIZONTAL_MIRROR           OV2640_BOOL_TRUE                 /**< enable horizontal mirror */
+#define OV2640_BASIC_DEFAULT_VERTICAL_FLIP               OV2640_BOOL_TRUE                 /**< enable vertical flip */
 #define OV2640_BASIC_DEFAULT_BAND_FILTER                 OV2640_BOOL_TRUE                 /**< enable band filter */
 #define OV2640_BASIC_DEFAULT_AGC_CONTROL                 OV2640_CONTROL_AUTO              /**< auto */
 #define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL            OV2640_CONTROL_AUTO              /**< auto */
@@ -151,10 +151,10 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_AEC_SEL                 OV2640_BOOL_FALSE                /**< disable aec sel */
 #define OV2640_BASIC_DEFAULT_DSP_STAT_SEL                OV2640_BOOL_FALSE                /**< disable stat sel */
 #define OV2640_BASIC_DEFAULT_DSP_VFIRST                  OV2640_BOOL_FALSE                /**< disable vfirst */
-#define OV2640_BASIC_DEFAULT_DSP_YUV422                  OV2640_BOOL_TRUE                 /**< enable yuv422 */
-#define OV2640_BASIC_DEFAULT_DSP_YUV                     OV2640_BOOL_TRUE                 /**< enable yuv */
+#define OV2640_BASIC_DEFAULT_DSP_YUV422                  OV2640_BOOL_FALSE                /**< enable yuv422 */
+#define OV2640_BASIC_DEFAULT_DSP_YUV                     OV2640_BOOL_FALSE                /**< enable yuv */
 #define OV2640_BASIC_DEFAULT_DSP_RGB                     OV2640_BOOL_FALSE                /**< disable rgb */
-#define OV2640_BASIC_DEFAULT_DSP_RAW                     OV2640_BOOL_FALSE                /**< disable raw */
+#define OV2640_BASIC_DEFAULT_DSP_RAW                     OV2640_BOOL_TRUE                 /**< disable raw */
 #define OV2640_BASIC_DEFAULT_DSP_DP_SELX                 0x00                             /**< selx 0x00 */
 #define OV2640_BASIC_DEFAULT_DSP_DP_SELY                 0x00                             /**< sely 0x00 */
 
