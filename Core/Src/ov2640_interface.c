@@ -11,7 +11,6 @@ extern I2C_HandleTypeDef hi2c1;
 /* Note: OV2640_RST_PIN is connected to SYS_RESET - not software controllable */
 
 /* OV2640 I2C address */
-#define OV2640_I2C_ADDR 0x60
 
 static void debug_vprint( const char *fmt, va_list argp )
 {

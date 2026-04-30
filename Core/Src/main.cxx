@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "ov2640_basic.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dcmi.h"
 #include "stm32h7xx_hal_dma.h"
@@ -314,10 +315,7 @@ void HAL_DMA_CpltCallback( DMA_HandleTypeDef * );
 //     { 0xff, 0xff } };
 
 // enum imageResolution imgRes = RES_320X240;
-#define WIDTH  300
-#define HEIGHT 240
-static ov2640_handle_t ov2640_handle; /**< ov2640 handle */
-uint16_t frameBuffers[ 2 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
 
@@ -330,19 +328,6 @@ uint8_t *curentFrameBuffer;
 int main( void )
 {
     /* USER CODE BEGIN 1 */
-    DRIVER_OV2640_LINK_INIT( &ov2640_handle, ov2640_handle_t );
-    DRIVER_OV2640_LINK_SCCB_INIT( &ov2640_handle, ov2640_interface_sccb_init );
-    DRIVER_OV2640_LINK_SCCB_DEINIT( &ov2640_handle, ov2640_interface_sccb_deinit );
-    DRIVER_OV2640_LINK_SCCB_READ( &ov2640_handle, ov2640_interface_sccb_read );
-    DRIVER_OV2640_LINK_SCCB_WRITE( &ov2640_handle, ov2640_interface_sccb_write );
-    DRIVER_OV2640_LINK_POWER_DOWN_INIT( &ov2640_handle, ov2640_interface_power_down_init );
-    DRIVER_OV2640_LINK_POWER_DOWN_DEINIT( &ov2640_handle, ov2640_interface_power_down_deinit );
-    DRIVER_OV2640_LINK_POWER_DOWN_WRITE( &ov2640_handle, ov2640_interface_power_down_write );
-    DRIVER_OV2640_LINK_RESET_INIT( &ov2640_handle, ov2640_interface_reset_init );
-    DRIVER_OV2640_LINK_RESET_DEINIT( &ov2640_handle, ov2640_interface_reset_deinit );
-    DRIVER_OV2640_LINK_RESET_WRITE( &ov2640_handle, ov2640_interface_reset_write );
-    DRIVER_OV2640_LINK_DELAY_MS( &ov2640_handle, ov2640_interface_delay_ms );
-    DRIVER_OV2640_LINK_DEBUG_PRINT( &ov2640_handle, ov2640_interface_debug_print );
     /* USER CODE END 1 */
 
     /* MPU Configuration--------------------------------------------------------*/
@@ -374,25 +359,28 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
+    auto d = ov2640_basic_init();
+    d      = ov2640_basic_set_rgb565_mode();
+    d      = ov2640_basic_set_image_resolution( OV2640_IMAGE_RESOLUTION_QVGA );
+    ov2640_interface_delay_ms( 500 );
+    // // ov2640 init
+    // ov2640_init( &ov2640_handle );
 
-    // ov2640 init
-    ov2640_init( &ov2640_handle );
+    // // configure RGB565 mode
+    // ov2640_table_init( &ov2640_handle );
+    // ov2640_table_rgb565_init( &ov2640_handle );
 
-    // configure RGB565 mode
-    ov2640_table_init( &ov2640_handle );
-    ov2640_table_rgb565_init( &ov2640_handle );
+    // // configure resolution
+    // ov2640_set_resolution( &ov2640_handle, OV2640_RESOLUTION_UXGA );
 
-    // configure resolution
-    ov2640_set_resolution( &ov2640_handle, OV2640_RESOLUTION_UXGA );
+    // // configure image size
+    // // set output size
+    // ov2640_set_output_width( &ov2640_handle, WIDTH / 4 );
+    // ov2640_set_output_height( &ov2640_handle, HEIGHT / 4 );
 
-    // configure image size
-    // set output size
-    ov2640_set_output_width( &ov2640_handle, WIDTH / 4 );
-    ov2640_set_output_height( &ov2640_handle, HEIGHT / 4 );
-
-    // set image size
-    ov2640_set_image_horizontal( &ov2640_handle, 800 );
-    ov2640_set_image_vertical( &ov2640_handle, 600 );
+    // // set image size
+    // ov2640_set_image_horizontal( &ov2640_handle, 800 );
+    // ov2640_set_image_vertical( &ov2640_handle, 600 );
 
     // enable AGC and AEC
     // ov2640_set_agc_control( &ov2640_handle, OV2640_CONTROL_AUTO );
@@ -486,8 +474,8 @@ int main( void )
     // HAL_Delay( 100 );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, WIDTH * HEIGHT * 2 );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT ); // DMA write by WORDs
+    memset( &frameBuffers, 0, WIDTH * HEIGHT );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT );
 
     /* USER CODE END 2 */
 
