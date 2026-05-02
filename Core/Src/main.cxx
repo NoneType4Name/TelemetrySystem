@@ -357,12 +357,17 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
+    HAL_Delay( 200 );
+    // auto d = 1;
+    // if ( d ) HAL_DCMI_Stop( &hdcmi );
+
     OV2640_Init( &hi2c1, &hdcmi );
-    auto d = ov2640_basic_init();
-    d      = ov2640_basic_set_rgb565_mode();
-    d      = ov2640_basic_set_image_resolution( OV2640_IMAGE_RESOLUTION_QVGA );
-    // ov2640_interface_delay_ms( 500 );
-    // // ov2640 init
+    ov2640_basic_init();
+    ov2640_basic_set_rgb565_mode();
+    ov2640_basic_set_image_resolution( OV2640_IMAGE_RESOLUTION_QVGA );
+    ov2640_interface_delay_ms( 500 );
+
+    // ov2640 init
     // OV2640_Init( &hi2c1, &hdcmi );
 
     // // configure RGB565 mode
@@ -475,7 +480,7 @@ int main( void )
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
     memset( &frameBuffers, 0, WIDTH * HEIGHT );
-    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT / 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -483,39 +488,39 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        my_printf( "\n========== OV2640 Register Dump ==========\n\n" );
+        // my_printf( "\n========== OV2640 Register Dump ==========\n\n" );
 
-        // Bank 0 - DSP Registers (0xFF = 0x00)
-        my_printf( "--- DSP Bank (0xFF=0x00) ---\n" );
-        SCCB_Write( 0xFF, 0x00 ); // Select DSP bank
+        // // Bank 0 - DSP Registers (0xFF = 0x00)
+        // my_printf( "--- DSP Bank (0xFF=0x00) ---\n" );
+        // SCCB_Write( 0xFF, 0x00 ); // Select DSP bank
 
-        uint8_t dsp_regs[] = { 0x05, 0x44, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
-                               0x5A, 0x5B, 0x5C, 0x7C, 0x7D, 0x86, 0x87, 0x8C, 0xC0, 0xC1,
-                               0xC2, 0xC3, 0xD3, 0xDA, 0xE0, 0xF0, 0xF7, 0xF8, 0xF9, 0xFA,
-                               0xFB, 0xFC, 0xFD, 0xFE, 0xFF };
+        // uint8_t dsp_regs[] = { 0x05, 0x44, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
+        //                        0x5A, 0x5B, 0x5C, 0x7C, 0x7D, 0x86, 0x87, 0x8C, 0xC0, 0xC1,
+        //                        0xC2, 0xC3, 0xD3, 0xDA, 0xE0, 0xF0, 0xF7, 0xF8, 0xF9, 0xFA,
+        //                        0xFB, 0xFC, 0xFD, 0xFE, 0xFF };
 
-        for ( int i = 0; i < sizeof( dsp_regs ); i++ )
-        {
-            SCCB_Read( dsp_regs[ i ], &reg_value );
-            my_printf( "REG[0x%02X] = 0x%02X\n", dsp_regs[ i ], reg_value );
-        }
+        // for ( int i = 0; i < sizeof( dsp_regs ); i++ )
+        // {
+        //     SCCB_Read( dsp_regs[ i ], &reg_value );
+        //     my_printf( "REG[0x%02X] = 0x%02X\n", dsp_regs[ i ], reg_value );
+        // }
 
-        my_printf( "\n--- Sensor Bank (0xFF=0x01) ---\n" );
-        SCCB_Write( 0xFF, 0x01 ); // Select Sensor bank
+        // my_printf( "\n--- Sensor Bank (0xFF=0x01) ---\n" );
+        // SCCB_Write( 0xFF, 0x01 ); // Select Sensor bank
 
-        uint8_t sensor_regs[] = { 0x00, 0x03, 0x04, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x10,
-                                  0x11, 0x12, 0x13, 0x14, 0x15, 0x17, 0x18, 0x19, 0x1A, 0x1C,
-                                  0x1D, 0x24, 0x25, 0x26, 0x2A, 0x2B, 0x2D, 0x2E, 0x2F, 0x30,
-                                  0x31, 0x32, 0x34, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4B, 0x4E,
-                                  0x4F, 0x50, 0x5D, 0x5E, 0x5F, 0x60, 0x61, 0x62 };
+        // uint8_t sensor_regs[] = { 0x00, 0x03, 0x04, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x10,
+        //                           0x11, 0x12, 0x13, 0x14, 0x15, 0x17, 0x18, 0x19, 0x1A, 0x1C,
+        //                           0x1D, 0x24, 0x25, 0x26, 0x2A, 0x2B, 0x2D, 0x2E, 0x2F, 0x30,
+        //                           0x31, 0x32, 0x34, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4B, 0x4E,
+        //                           0x4F, 0x50, 0x5D, 0x5E, 0x5F, 0x60, 0x61, 0x62 };
 
-        for ( int i = 0; i < sizeof( sensor_regs ); i++ )
-        {
-            SCCB_Read( sensor_regs[ i ], &reg_value );
-            my_printf( "REG[0x%02X] = 0x%02X\n", sensor_regs[ i ], reg_value );
-        }
+        // for ( int i = 0; i < sizeof( sensor_regs ); i++ )
+        // {
+        //     SCCB_Read( sensor_regs[ i ], &reg_value );
+        //     my_printf( "REG[0x%02X] = 0x%02X\n", sensor_regs[ i ], reg_value );
+        // }
 
-        my_printf( "\n========== End of Register Dump ==========\n" );
+        // my_printf( "\n========== End of Register Dump ==========\n" );
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -827,7 +832,7 @@ void my_printf( const char *fmt, ... )
     va_start( argp, fmt );
     vprint( fmt, argp );
     va_end( argp );
-    HAL_Delay( 10 );
+    HAL_Delay( 50 );
 }
 
 /* USER CODE END 4 */

@@ -36,7 +36,7 @@
 
 #include "ov2640_basic.h"
 
-static ov2640_handle_t gs_handle; /**< ov2640 handle */
+ov2640_handle_t gs_handle; /**< ov2640 handle */
 
 /**
  * @brief  basic example init
