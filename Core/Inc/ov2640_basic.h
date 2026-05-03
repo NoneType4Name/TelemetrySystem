@@ -57,108 +57,113 @@ extern "C"
 /**
  * @brief ov2640 basic example default definition
  */
-#define OV2640_BASIC_DEFAULT_CLOCK_RATE_DOUBLE           OV2640_BOOL_FALSE                /**< disable double rate */
-#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER               0x04                             /**< div 0 */
-#define OV2640_BASIC_DEFAULT_MODE                        OV2640_MODE_NORMAL               /**< normal mode */
-#define OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP       OV2640_BOOL_FALSE                /**< disable power reset remap */
-#define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE                OV2640_OUTPUT_DRIVE_2_CAPABILITY /**< 2 capability */
-#define OV2640_BASIC_DEFAULT_HORIZONTAL_MIRROR           OV2640_BOOL_TRUE                 /**< enable horizontal mirror */
-#define OV2640_BASIC_DEFAULT_VERTICAL_FLIP               OV2640_BOOL_TRUE                 /**< enable vertical flip */
-#define OV2640_BASIC_DEFAULT_BAND_FILTER                 OV2640_BOOL_TRUE                 /**< enable band filter */
-#define OV2640_BASIC_DEFAULT_AGC_CONTROL                 OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL            OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING            OV2640_AGC_8X                    /**< agc 8x */
-#define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START         OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
-#define OV2640_BASIC_DEFAULT_PIN_STATUS                  OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
-#define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START         0x0000                           /**< 0x0000 */
-#define OV2640_BASIC_DEFAULT_LUMINANCE_HIGH              0x40                             /**< 0x40 */
-#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW               0x38                             /**< 0x38 */
-#define OV2640_BASIC_DEFAULT_FAST_MODE_HIGH              0x8                              /**< 0x8 */
-#define OV2640_BASIC_DEFAULT_FAST_MODE_LOW               0x2                              /**< 0x2 */
-#define OV2640_BASIC_DEFAULT_FRAME_LENGTH_ADJ            0x0022                           /**< 0x0000 */
-#define OV2640_BASIC_DEFAULT_BAND                        OV2640_BAND_50HZ                 /**< 50Hz */
-#define OV2640_BASIC_DEFAULT_AUTO_BAND                   OV2640_BOOL_FALSE                /**< disable auto band */
-#define OV2640_BASIC_DEFAULT_SNAPSHOT                    OV2640_BOOL_FALSE                /**< disable snapshot */
-#define OV2640_BASIC_DEFAULT_HISTO_LOW                   0x70                             /**< histo low */
-#define OV2640_BASIC_DEFAULT_HISTO_HIGH                  0x80                             /**< histo high */
-#define OV2640_BASIC_DEFAULT_BD50_AEC                    0x0CA                            /**< bd50 aec */
-#define OV2640_BASIC_DEFAULT_BD60_AEC                    0x0A8                            /**< bd60 aec */
-#define OV2640_BASIC_DEFAULT_RESOLUTION                  OV2640_RESOLUTION_SVGA           /**< uxga */
-#define OV2640_BASIC_DEFAULT_ZOOM                        OV2640_BOOL_FALSE                /**< disable zoom */
-#define OV2640_BASIC_DEFAULT_COLOR_BAR_TEST              OV2640_BOOL_FALSE                /**< disable color bar test */
-#define OV2640_BASIC_DEFAULT_PCLK                        OV2640_PCLK_NO_EFFECT            /**< pclk no effect */
-#define OV2640_BASIC_DEFAULT_H_WINDOW_START              137                              /**< 142 */
-#define OV2640_BASIC_DEFAULT_H_WINDOW_END                537                              /**< 942 */
-#define OV2640_BASIC_DEFAULT_V_WINDOW_START              2                                /**< 7 */
-#define OV2640_BASIC_DEFAULT_V_WINDOW_END                606                              /**< 607 */
-#define OV2640_BASIC_DEFAULT_VSYNC_PULSE_WIDTH           0x0000                           /**< 0x0000 */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN                    0x0000                           /**< 0x0000 */
-#define OV2640_BASIC_DEFAULT_DUMMY_FRAME                 OV2640_DUMMY_FRAME_NONE          /**< dummy frame none */
-#define OV2640_BASIC_DEFAULT_AEC                         0x0CC                            /**< 0x0CC */
-#define OV2640_BASIC_DEFAULT_FRAME_EXPOSURE_PRE_ROW      0x40                             /**< 0x40 */
-#define OV2640_BASIC_DEFAULT_CHSYNC_HREF_SWAP            OV2640_BOOL_FALSE                /**< disable swap */
-#define OV2640_BASIC_DEFAULT_HREF_CHSYNC_SWAP            OV2640_BOOL_FALSE                /**< disable swap */
-#define OV2640_BASIC_DEFAULT_PCLK_OUTPUT_BY_HREF         OV2640_BOOL_FALSE                /**< disable */
-#define OV2640_BASIC_DEFAULT_PCLK_EDGE                   OV2640_EDGE_FALLING              /**< falling edge */
-#define OV2640_BASIC_DEFAULT_HREF_POLARITY               OV2640_POLARITY_POSITIVE         /**< positive */
-#define OV2640_BASIC_DEFAULT_VSYNC_POLARITY              OV2640_POLARITY_POSITIVE         /**< positive */
-#define OV2640_BASIC_DEFAULT_HSYNC_POLARITY              OV2640_POLARITY_POSITIVE         /**< positive */
-#define OV2640_BASIC_DEFAULT_LINE_INTERVAL_ADJUST        0x000                            /**< 0x000 */
-#define OV2640_BASIC_DEFAULT_HSYNC_START_POINT           0x08                             /**< 0x08 */
-#define OV2640_BASIC_DEFAULT_HSYNC_END_POINT             0x30                             /**< 0x30 */
-#define OV2640_BASIC_DEFAULT_LUMINANCE_AVG               0x00                             /**< 0x00 */
-#define OV2640_BASIC_DEFAULT_FLASH_LIGHT                 0x20                             /**< 0x20 */
-#define OV2640_BASIC_DEFAULT_16_ZONE_AVG_WEIGHT          0x00000000                       /**< 0x00000000 */
-#define OV2640_BASIC_DEFAULT_DSP_BPC                     OV2640_BOOL_TRUE                 /**< enable bpc */
-#define OV2640_BASIC_DEFAULT_DSP_WPC                     OV2640_BOOL_TRUE                 /**< enable wpc */
-#define OV2640_BASIC_DEFAULT_DSP_DVP_PCLK                0x04                             /**< 0x02 */
-#define OV2640_BASIC_DEFAULT_DSP_CIP                     OV2640_BOOL_TRUE                 /**< enable cip */
-#define OV2640_BASIC_DEFAULT_DSP_DMY                     OV2640_BOOL_TRUE                 /**< enable dmy */
-#define OV2640_BASIC_DEFAULT_DSP_RAW_GMA                 OV2640_BOOL_TRUE                 /**< enable raw gma */
-#define OV2640_BASIC_DEFAULT_DSP_DG                      OV2640_BOOL_FALSE                /**< disable dg */
-#define OV2640_BASIC_DEFAULT_DSP_AWB                     OV2640_BOOL_TRUE                 /**< enable awb */
-#define OV2640_BASIC_DEFAULT_DSP_AWB_GAIN                OV2640_BOOL_TRUE                 /**< enable awb gain */
-#define OV2640_BASIC_DEFAULT_DSP_PRE                     OV2640_BOOL_TRUE                 /**< enable pre */
-#define OV2640_BASIC_DEFAULT_DSP_DVP_Y8                  OV2640_BOOL_FALSE                /**< disable dvp y8 */
-#define OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT             OV2640_BOOL_FALSE                /**< disable jpeg output */
-#define OV2640_BASIC_DEFAULT_DSP_DVP_OUTPUT_FORMAT       OV2640_DVP_OUTPUT_FORMAT_RGB565  /**< rgb565 format */
-#define OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT_HREF_TIMING OV2640_HREF_TIMING_SENSOR        /**< sensor timing */
-#define OV2640_BASIC_DEFAULT_DSP_BYTE_SWAP               OV2640_BYTE_SWAP_UVUV            /**< uvuv */
-#define OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL        800                              /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL          600                              /**< 1200 */
-#define OV2640_BASIC_DEFAULT_DSP_DCW                     OV2640_BOOL_TRUE                 /**< enable dcw */
-#define OV2640_BASIC_DEFAULT_DSP_SDE                     OV2640_BOOL_TRUE                 /**< enable sde */
-#define OV2640_BASIC_DEFAULT_DSP_UV_ADJ                  OV2640_BOOL_TRUE                 /**< enable uv adj */
-#define OV2640_BASIC_DEFAULT_DSP_UV_AVG                  OV2640_BOOL_TRUE                 /**< enable uv avg */
-#define OV2640_BASIC_DEFAULT_DSP_CMX                     OV2640_BOOL_TRUE                 /**< enable cmx */
-#define OV2640_BASIC_DEFAULT_DSP_LP_DP                   OV2640_BOOL_FALSE                /**< disable lp dp */
-#define OV2640_BASIC_DEFAULT_DSP_ROUND                   OV2640_BOOL_FALSE                /**< disable round */
-#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV            0x00                             /**< div 0 */
-#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV          0x00                             /**< div 0 */
-#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE         800                              /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE           600                              /**< 1200 */
-#define OV2640_BASIC_DEFAULT_DSP_OFFSET_X                0                                /**< offset 0 */
-#define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y                0                                /**< offset 0 */
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH            1600                             /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT           1200                             /**< 1200 */
-#define OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED              0x05                             /**< speed 0 */
-#define OV2640_BASIC_DEFAULT_DSP_QSF                     0x0C                             /**< 0x0C */
-#define OV2640_BASIC_DEFAULT_DSP_SCCB_MASTER_SPEED       4                                /**< 4 */
-#define OV2640_BASIC_DEFAULT_DSP_ADDRESS_AUTO_INC        OV2640_BOOL_FALSE                /**< disable address auto inc */
-#define OV2640_BASIC_DEFAULT_DSP_SCCB                    OV2640_BOOL_FALSE                /**< disable sccb */
-#define OV2640_BASIC_DEFAULT_DSP_SCCB_CLOCK_DELAY        OV2640_BOOL_FALSE                /**< disable sccb clock delay */
-#define OV2640_BASIC_DEFAULT_DSP_SCCB_ACCESS             OV2640_BOOL_FALSE                /**< disable sccb access */
-#define OV2640_BASIC_DEFAULT_DSP_SENSOR_PASS_ACCESS      OV2640_BOOL_TRUE                 /**< enable sensor pass access */
-#define OV2640_BASIC_DEFAULT_DSP_AEC_ENABLE              OV2640_BOOL_FALSE                /**< disable aec enable */
-#define OV2640_BASIC_DEFAULT_DSP_AEC_SEL                 OV2640_BOOL_FALSE                /**< disable aec sel */
-#define OV2640_BASIC_DEFAULT_DSP_STAT_SEL                OV2640_BOOL_FALSE                /**< disable stat sel */
-#define OV2640_BASIC_DEFAULT_DSP_VFIRST                  OV2640_BOOL_FALSE                /**< disable vfirst */
-#define OV2640_BASIC_DEFAULT_DSP_YUV422                  OV2640_BOOL_TRUE                 /**< enable yuv422 */
-#define OV2640_BASIC_DEFAULT_DSP_YUV                     OV2640_BOOL_TRUE                 /**< enable yuv */
-#define OV2640_BASIC_DEFAULT_DSP_RGB                     OV2640_BOOL_FALSE                /**< disable rgb */
-#define OV2640_BASIC_DEFAULT_DSP_RAW                     OV2640_BOOL_FALSE                /**< disable raw */
-#define OV2640_BASIC_DEFAULT_DSP_DP_SELX                 0x00                             /**< selx 0x00 */
-#define OV2640_BASIC_DEFAULT_DSP_DP_SELY                 0x00                             /**< sely 0x00 */
+#define OV2640_BASIC_DEFAULT_CLOCK_RATE_DOUBLE     OV2640_BOOL_FALSE                /**< disable double rate */
+#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER         0x006                            /**< div 0 */
+#define OV2640_BASIC_DEFAULT_MODE                  OV2640_MODE_NORMAL               /**< normal mode */
+#define OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP OV2640_BOOL_FALSE                /**< disable power reset remap */
+#define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE          OV2640_OUTPUT_DRIVE_4_CAPABILITY /**< 2 capability */
+#define OV2640_BASIC_DEFAULT_HORIZONTAL_MIRROR     OV2640_BOOL_TRUE                 /**< enable horizontal mirror */
+#define OV2640_BASIC_DEFAULT_VERTICAL_FLIP         OV2640_BOOL_TRUE                 /**< enable vertical flip */
+#define OV2640_BASIC_DEFAULT_BAND_FILTER           OV2640_BOOL_TRUE                 /**< enable band filter */
+#define OV2640_BASIC_DEFAULT_AGC_CONTROL           OV2640_CONTROL_AUTO              /**< auto */
+#define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL      OV2640_CONTROL_AUTO              /**< auto */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_8X                    /**< agc 8x */
+#define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START   OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
+#define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
+#define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
+#define OV2640_BASIC_DEFAULT_LUMINANCE_HIGH        0x40                             /**< 0x40 */
+#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW         0x38                             /**< 0x38 */
+#define OV2640_BASIC_DEFAULT_FAST_MODE_HIGH        0x8                              /**< 0x8 */
+#define OV2640_BASIC_DEFAULT_FAST_MODE_LOW         0x2                              /**< 0x2 */
+#define OV2640_BASIC_DEFAULT_FRAME_LENGTH_ADJ      0x0022                           /**< 0x0000 */
+#define OV2640_BASIC_DEFAULT_BAND                  OV2640_BAND_50HZ                 /**< 50Hz */
+#define OV2640_BASIC_DEFAULT_AUTO_BAND             OV2640_BOOL_FALSE                /**< disable auto band */
+#define OV2640_BASIC_DEFAULT_SNAPSHOT              OV2640_BOOL_FALSE                /**< disable snapshot */
+#define OV2640_BASIC_DEFAULT_HISTO_LOW             0x70                             /**< histo low */
+#define OV2640_BASIC_DEFAULT_HISTO_HIGH            0x80                             /**< histo high */
+#define OV2640_BASIC_DEFAULT_BD50_AEC              0x0CA                            /**< bd50 aec */
+#define OV2640_BASIC_DEFAULT_BD60_AEC              0x0A8                            /**< bd60 aec */
+#define OV2640_BASIC_DEFAULT_RESOLUTION            OV2640_RESOLUTION_CIF            /**< uxga */
+#define OV2640_BASIC_DEFAULT_ZOOM                  OV2640_BOOL_FALSE                /**< disable zoom */
+#define OV2640_BASIC_DEFAULT_COLOR_BAR_TEST        OV2640_BOOL_FALSE                /**< disable color bar test */
+#define OV2640_BASIC_DEFAULT_PCLK                  OV2640_PCLK_DIVIDE_4             /**< pclk no effect */
+    // #define OV2640_BASIC_DEFAULT_H_WINDOW_START        137                              /**< 142 */
+    // #define OV2640_BASIC_DEFAULT_H_WINDOW_END          537                              /**< 942 */
+    // #define OV2640_BASIC_DEFAULT_V_WINDOW_START        3                                /**< 7 */
+    // #define OV2640_BASIC_DEFAULT_V_WINDOW_END          303                              /**< 607 */
+
+#define OV2640_BASIC_DEFAULT_H_WINDOW_START              142                             /**< 142 */
+#define OV2640_BASIC_DEFAULT_H_WINDOW_END                942                             /**< 942 */
+#define OV2640_BASIC_DEFAULT_V_WINDOW_START              7                               /**< 7 */
+#define OV2640_BASIC_DEFAULT_V_WINDOW_END                607                             /**< 607 */
+#define OV2640_BASIC_DEFAULT_VSYNC_PULSE_WIDTH           0x0000                          /**< 0x0000 */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN                    0x0000                          /**< 0x0000 */
+#define OV2640_BASIC_DEFAULT_DUMMY_FRAME                 OV2640_DUMMY_FRAME_NONE         /**< dummy frame none */
+#define OV2640_BASIC_DEFAULT_AEC                         0x0CC                           /**< 0x0CC */
+#define OV2640_BASIC_DEFAULT_FRAME_EXPOSURE_PRE_ROW      0x40                            /**< 0x40 */
+#define OV2640_BASIC_DEFAULT_CHSYNC_HREF_SWAP            OV2640_BOOL_FALSE               /**< disable swap */
+#define OV2640_BASIC_DEFAULT_HREF_CHSYNC_SWAP            OV2640_BOOL_FALSE               /**< disable swap */
+#define OV2640_BASIC_DEFAULT_PCLK_OUTPUT_BY_HREF         OV2640_BOOL_FALSE               /**< disable */
+#define OV2640_BASIC_DEFAULT_PCLK_EDGE                   OV2640_EDGE_FALLING             /**< falling edge */
+#define OV2640_BASIC_DEFAULT_HREF_POLARITY               OV2640_POLARITY_POSITIVE        /**< positive */
+#define OV2640_BASIC_DEFAULT_VSYNC_POLARITY              OV2640_POLARITY_POSITIVE        /**< positive */
+#define OV2640_BASIC_DEFAULT_HSYNC_POLARITY              OV2640_POLARITY_POSITIVE        /**< positive */
+#define OV2640_BASIC_DEFAULT_LINE_INTERVAL_ADJUST        0x000                           /**< 0x000 */
+#define OV2640_BASIC_DEFAULT_HSYNC_START_POINT           0x08                            /**< 0x08 */
+#define OV2640_BASIC_DEFAULT_HSYNC_END_POINT             0x30                            /**< 0x30 */
+#define OV2640_BASIC_DEFAULT_LUMINANCE_AVG               0x00                            /**< 0x00 */
+#define OV2640_BASIC_DEFAULT_FLASH_LIGHT                 0x20                            /**< 0x20 */
+#define OV2640_BASIC_DEFAULT_16_ZONE_AVG_WEIGHT          0x55555555                      /**< 0x00000000 */
+#define OV2640_BASIC_DEFAULT_DSP_BPC                     OV2640_BOOL_TRUE                /**< enable bpc */
+#define OV2640_BASIC_DEFAULT_DSP_WPC                     OV2640_BOOL_TRUE                /**< enable wpc */
+#define OV2640_BASIC_DEFAULT_DSP_DVP_PCLK                0x04                            /**< 0x02 */
+#define OV2640_BASIC_DEFAULT_DSP_CIP                     OV2640_BOOL_TRUE                /**< enable cip */
+#define OV2640_BASIC_DEFAULT_DSP_DMY                     OV2640_BOOL_TRUE                /**< enable dmy */
+#define OV2640_BASIC_DEFAULT_DSP_RAW_GMA                 OV2640_BOOL_TRUE                /**< enable raw gma */
+#define OV2640_BASIC_DEFAULT_DSP_DG                      OV2640_BOOL_FALSE               /**< disable dg */
+#define OV2640_BASIC_DEFAULT_DSP_AWB                     OV2640_BOOL_TRUE                /**< enable awb */
+#define OV2640_BASIC_DEFAULT_DSP_AWB_GAIN                OV2640_BOOL_TRUE                /**< enable awb gain */
+#define OV2640_BASIC_DEFAULT_DSP_PRE                     OV2640_BOOL_TRUE                /**< enable pre */
+#define OV2640_BASIC_DEFAULT_DSP_DVP_Y8                  OV2640_BOOL_FALSE               /**< disable dvp y8 */
+#define OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT             OV2640_BOOL_FALSE               /**< disable jpeg output */
+#define OV2640_BASIC_DEFAULT_DSP_DVP_OUTPUT_FORMAT       OV2640_DVP_OUTPUT_FORMAT_RGB565 /**< rgb565 format */
+#define OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT_HREF_TIMING OV2640_HREF_TIMING_SENSOR       /**< sensor timing */
+#define OV2640_BASIC_DEFAULT_DSP_BYTE_SWAP               OV2640_BYTE_SWAP_UVUV           /**< uvuv */
+#define OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL        400                             /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL          296                             /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_DCW                     OV2640_BOOL_TRUE                /**< enable dcw */
+#define OV2640_BASIC_DEFAULT_DSP_SDE                     OV2640_BOOL_TRUE                /**< enable sde */
+#define OV2640_BASIC_DEFAULT_DSP_UV_ADJ                  OV2640_BOOL_TRUE                /**< enable uv adj */
+#define OV2640_BASIC_DEFAULT_DSP_UV_AVG                  OV2640_BOOL_TRUE                /**< enable uv avg */
+#define OV2640_BASIC_DEFAULT_DSP_CMX                     OV2640_BOOL_TRUE                /**< enable cmx */
+#define OV2640_BASIC_DEFAULT_DSP_LP_DP                   OV2640_BOOL_FALSE               /**< disable lp dp */
+#define OV2640_BASIC_DEFAULT_DSP_ROUND                   OV2640_BOOL_FALSE               /**< disable round */
+#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV            0x00                            /**< div 0 */
+#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV          0x00                            /**< div 0 */
+#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE         400                             /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE           296                             /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_OFFSET_X                0                               /**< offset 0 */
+#define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y                0                               /**< offset 0 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH            400                             /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT           296                             /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED              0x00                            /**< speed 0 */
+#define OV2640_BASIC_DEFAULT_DSP_QSF                     0x0C                            /**< 0x0C */
+#define OV2640_BASIC_DEFAULT_DSP_SCCB_MASTER_SPEED       4                               /**< 4 */
+#define OV2640_BASIC_DEFAULT_DSP_ADDRESS_AUTO_INC        OV2640_BOOL_FALSE               /**< disable address auto inc */
+#define OV2640_BASIC_DEFAULT_DSP_SCCB                    OV2640_BOOL_FALSE               /**< disable sccb */
+#define OV2640_BASIC_DEFAULT_DSP_SCCB_CLOCK_DELAY        OV2640_BOOL_FALSE               /**< disable sccb clock delay */
+#define OV2640_BASIC_DEFAULT_DSP_SCCB_ACCESS             OV2640_BOOL_FALSE               /**< disable sccb access */
+#define OV2640_BASIC_DEFAULT_DSP_SENSOR_PASS_ACCESS      OV2640_BOOL_TRUE                /**< enable sensor pass access */
+#define OV2640_BASIC_DEFAULT_DSP_AEC_ENABLE              OV2640_BOOL_FALSE               /**< disable aec enable */
+#define OV2640_BASIC_DEFAULT_DSP_AEC_SEL                 OV2640_BOOL_FALSE               /**< disable aec sel */
+#define OV2640_BASIC_DEFAULT_DSP_STAT_SEL                OV2640_BOOL_FALSE               /**< disable stat sel */
+#define OV2640_BASIC_DEFAULT_DSP_VFIRST                  OV2640_BOOL_FALSE               /**< disable vfirst */
+#define OV2640_BASIC_DEFAULT_DSP_YUV422                  OV2640_BOOL_TRUE                /**< enable yuv422 */
+#define OV2640_BASIC_DEFAULT_DSP_YUV                     OV2640_BOOL_TRUE                /**< enable yuv */
+#define OV2640_BASIC_DEFAULT_DSP_RGB                     OV2640_BOOL_FALSE               /**< disable rgb */
+#define OV2640_BASIC_DEFAULT_DSP_RAW                     OV2640_BOOL_FALSE               /**< disable raw */
+#define OV2640_BASIC_DEFAULT_DSP_DP_SELX                 0x00                            /**< selx 0x00 */
+#define OV2640_BASIC_DEFAULT_DSP_DP_SELY                 0x00                            /**< sely 0x00 */
 
     /**
      * @brief ov2640 image resolution enumeration definition

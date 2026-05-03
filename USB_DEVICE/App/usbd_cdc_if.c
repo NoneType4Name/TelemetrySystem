@@ -310,10 +310,11 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
     /* USER CODE BEGIN 13 */
     if ( frameLen >= APP_TX_DATA_SIZE )
     {
+        if ( *Len > 3 )
+            curentFrameBuffer += APP_TX_DATA_SIZE;
         CDC_Transmit_FS( curentFrameBuffer, APP_TX_DATA_SIZE );
-        if ( frameLen - APP_TX_DATA_SIZE > 0 )
+        if ( frameLen - APP_TX_DATA_SIZE >= 0 )
             frameLen -= APP_TX_DATA_SIZE;
-        curentFrameBuffer += APP_TX_DATA_SIZE;
     }
     else if ( frameLen )
     {

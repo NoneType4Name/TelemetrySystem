@@ -81,8 +81,8 @@ extern "C"
 #define CAMERA_PWDN_GPIO_Port  GPIOG
 #define DCMI_XCLX_Pin          GPIO_PIN_8
 #define DCMI_XCLX_GPIO_Port    GPIOA
-#define WIDTH                  320
-#define HEIGHT                 240
+#define WIDTH                  400
+#define HEIGHT                 296
 
     /* USER CODE END Private defines */
 

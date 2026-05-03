@@ -32,7 +32,7 @@ void MainWindow::readSerialData()
     bytes.remove( 0, 3 );
     bytes.remove( bytes.size() - 4, 3 );
     auto d = bytes.size();
-    QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 300, 240, QImage::Format_RGB16 );
+    QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 400, 296, QImage::Format_RGB16 );
     ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
     // ui->label->setScaledContents(true);
     bytes.clear();
