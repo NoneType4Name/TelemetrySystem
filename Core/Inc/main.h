@@ -82,7 +82,7 @@ extern "C"
 #define DCMI_XCLX_Pin          GPIO_PIN_8
 #define DCMI_XCLX_GPIO_Port    GPIOA
 #define WIDTH                  400
-#define HEIGHT                 296
+#define HEIGHT                 300
 
     /* USER CODE END Private defines */
 

@@ -35,6 +35,7 @@
  */
 
 #include "ov2640_basic.h"
+#include "ov2640_interface.h"
 
 ov2640_handle_t gs_handle; /**< ov2640 handle */
 
@@ -342,36 +343,37 @@ uint8_t ov2640_basic_init( void )
 
         return 1;
     }
+    ov2640_interface_delay_ms( 300 );
 
-    /* set default zoom */
-    res = ov2640_set_zoom( &gs_handle, OV2640_BASIC_DEFAULT_ZOOM );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set zoom failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default zoom */
+    // res = ov2640_set_zoom( &gs_handle, OV2640_BASIC_DEFAULT_ZOOM );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set zoom failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default color bar test */
-    res = ov2640_set_color_bar_test( &gs_handle, OV2640_BASIC_DEFAULT_COLOR_BAR_TEST );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set color bar test failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default color bar test */
+    // res = ov2640_set_color_bar_test( &gs_handle, OV2640_BASIC_DEFAULT_COLOR_BAR_TEST );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set color bar test failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default pclk */
-    res = ov2640_set_pclk( &gs_handle, OV2640_BASIC_DEFAULT_PCLK );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set pclk failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default pclk */
+    // res = ov2640_set_pclk( &gs_handle, OV2640_BASIC_DEFAULT_PCLK );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set pclk failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
     /* set default horizontal window start */
     res = ov2640_set_horizontal_window_start( &gs_handle, OV2640_BASIC_DEFAULT_H_WINDOW_START );
@@ -753,25 +755,25 @@ uint8_t ov2640_basic_init( void )
         return 1;
     }
 
-    /* set default image horizontal */
-    res = ov2640_set_image_horizontal( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set image horizontal failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default image horizontal */
+    // res = ov2640_set_image_horizontal( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set image horizontal failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default image vertical */
-    res = ov2640_set_image_vertical( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set image vertical failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default image vertical */
+    // res = ov2640_set_image_vertical( &gs_handle, OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set image vertical failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
     /* set default dcw */
     res = ov2640_set_dcw( &gs_handle, OV2640_BASIC_DEFAULT_DSP_DCW );
@@ -863,65 +865,65 @@ uint8_t ov2640_basic_init( void )
         return 1;
     }
 
-    /* set default horizontal size */
-    res = ov2640_set_horizontal_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE / 4 );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set horizontal size failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default horizontal size */
+    // res = ov2640_set_horizontal_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE / 4 );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set horizontal size failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default vertical size */
-    res = ov2640_set_vertical_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE / 4 );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set vertical size failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default vertical size */
+    // res = ov2640_set_vertical_size( &gs_handle, OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE / 4 );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set vertical size failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default offset x */
-    res = ov2640_set_offset_x( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_X );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set offset x failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default offset x */
+    // res = ov2640_set_offset_x( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_X );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set offset x failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default offset y */
-    res = ov2640_set_offset_y( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_Y );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set offset y failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default offset y */
+    // res = ov2640_set_offset_y( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OFFSET_Y );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set offset y failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default output width */
-    res = ov2640_set_output_width( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH / 4 );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set output width failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default output width */
+    // res = ov2640_set_output_width( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH / 4 );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set output width failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
-    /* set default output height */
-    res = ov2640_set_output_height( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT / 4 );
-    if ( res != 0 )
-    {
-        ov2640_interface_debug_print( "ov2640: set output height failed.\n" );
-        ( void ) ov2640_deinit( &gs_handle );
+    // /* set default output height */
+    // res = ov2640_set_output_height( &gs_handle, OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT / 4 );
+    // if ( res != 0 )
+    // {
+    //     ov2640_interface_debug_print( "ov2640: set output height failed.\n" );
+    //     ( void ) ov2640_deinit( &gs_handle );
 
-        return 1;
-    }
+    //     return 1;
+    // }
 
     /* set default zoom speed */
     res = ov2640_set_zoom_speed( &gs_handle, OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED );

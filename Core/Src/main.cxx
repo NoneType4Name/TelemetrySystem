@@ -164,13 +164,29 @@ int main( void )
     // HAL_DCMI_Stop( &hdcmi );
 
     // OV2640_Init( &hi2c1, &hdcmi );
-    ov2640_basic_init();
-    ov2640_basic_set_rgb565_mode();
-    ov2640_set_auto_mode( &gs_handle, OV2640_BOOL_TRUE );
+    uint16_t d;
+    d = ov2640_basic_init();
+    d = ov2640_basic_set_rgb565_mode();
     // ov2640_basic_set_image_resolution( OV2640_IMAGE_RESOLUTION_QVGA );
     // ov2640_set_output_width( &gs_handle, WIDTH / 4 );
     // ov2640_set_output_height( &gs_handle, HEIGHT / 4 );
     ov2640_interface_delay_ms( 500 );
+    ov2640_get_horizontal_window_start( &gs_handle, &d );
+    ov2640_get_horizontal_window_end( &gs_handle, &d );
+    ov2640_get_vertical_window_line_start( &gs_handle, &d );
+    ov2640_get_vertical_window_line_end( &gs_handle, &d );
+    ov2640_get_zoom( &gs_handle, reinterpret_cast<ov2640_bool_t *>( &d ) );
+    ov2640_get_pclk( &gs_handle, reinterpret_cast<ov2640_pclk_t *>( &d ) );
+    ov2640_get_image_horizontal( &gs_handle, &d );
+    ov2640_get_image_vertical( &gs_handle, &d );
+    ov2640_get_vertical_divider( &gs_handle, reinterpret_cast<uint8_t *>( &d ) );
+    ov2640_get_horizontal_divider( &gs_handle, reinterpret_cast<uint8_t *>( &d ) );
+    ov2640_get_horizontal_size( &gs_handle, &d );
+    ov2640_get_vertical_size( &gs_handle, &d );
+    ov2640_get_offset_x( &gs_handle, &d );
+    ov2640_get_offset_y( &gs_handle, &d );
+    ov2640_get_output_width( &gs_handle, &d );
+    ov2640_get_output_height( &gs_handle, &d );
 
     // ov2640 init
     // OV2640_Init( &hi2c1, &hdcmi );
