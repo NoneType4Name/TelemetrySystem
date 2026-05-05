@@ -327,19 +327,19 @@ extern "C"
      */
     typedef struct ov2640_handle_s
     {
-        uint8_t ( *sccb_init )( void );                                                   /**< point to an sccb_init function address */
-        uint8_t ( *sccb_deinit )( void );                                                 /**< point to an sccb_deinit function address */
-        uint8_t ( *sccb_read )( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len );  /**< point to an sccb_read function address */
-        uint8_t ( *sccb_write )( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len ); /**< point to an sccb_write function address */
-        uint8_t ( *power_down_init )( void );                                             /**< point to a power_down_init function address */
-        uint8_t ( *power_down_deinit )( void );                                           /**< point to a power_down_deinit function address */
-        uint8_t ( *power_down_write )( uint8_t level );                                   /**< point to a power_down_write function address */
-        uint8_t ( *reset_init )( void );                                                  /**< point to a reset_init function address */
-        uint8_t ( *reset_deinit )( void );                                                /**< point to a reset_deinit function address */
-        uint8_t ( *reset_write )( uint8_t level );                                        /**< point to a reset_write function address */
-        void ( *delay_ms )( uint32_t ms );                                                /**< point to a delay_ms function address */
-        void ( *debug_print )( const char *const fmt, ... );                              /**< point to a debug_print function address */
-        uint8_t inited;                                                                   /**< inited flag */
+        uint8_t ( *sccb_init )( void );                                                         /**< point to an sccb_init function address */
+        uint8_t ( *sccb_deinit )( void );                                                       /**< point to an sccb_deinit function address */
+        uint8_t ( *sccb_read )( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len );        /**< point to an sccb_read function address */
+        uint8_t ( *sccb_write )( uint8_t addr, uint8_t reg, const uint8_t *buf, uint16_t len ); /**< point to an sccb_write function address */
+        uint8_t ( *power_down_init )( void );                                                   /**< point to a power_down_init function address */
+        uint8_t ( *power_down_deinit )( void );                                                 /**< point to a power_down_deinit function address */
+        uint8_t ( *power_down_write )( uint8_t level );                                         /**< point to a power_down_write function address */
+        uint8_t ( *reset_init )( void );                                                        /**< point to a reset_init function address */
+        uint8_t ( *reset_deinit )( void );                                                      /**< point to a reset_deinit function address */
+        uint8_t ( *reset_write )( uint8_t level );                                              /**< point to a reset_write function address */
+        void ( *delay_ms )( uint32_t ms );                                                      /**< point to a delay_ms function address */
+        void ( *debug_print )( const char *const fmt, ... );                                    /**< point to a debug_print function address */
+        uint8_t inited;                                                                         /**< inited flag */
     } ov2640_handle_t;
 
     /**
