@@ -90,18 +90,7 @@ void HAL_DMA_CpltCallback( DMA_HandleTypeDef * );
 uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
-int sccb_config( const struct sensor_reg reglist[], uint16_t size )
-{
-    int err = 0;
-    // int written = 0;
 
-    for ( uint16_t i = 0; i < size; i++ )
-    {
-        err += gs_handle.sccb_write( 0x60, reglist[ i ].reg, &reglist[ i ].val, 1 );
-    }
-
-    return err;
-}
 /* USER CODE END 0 */
 
 /**
