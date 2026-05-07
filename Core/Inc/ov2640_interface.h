@@ -7,7 +7,7 @@
 uint8_t ov2640_interface_sccb_init( void );
 uint8_t ov2640_interface_sccb_deinit( void );
 uint8_t ov2640_interface_sccb_read( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len );
-uint8_t ov2640_interface_sccb_write( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len );
+uint8_t ov2640_interface_sccb_write( uint8_t addr, uint8_t reg, const uint8_t *buf, uint16_t len );
 
 // Power Down
 uint8_t ov2640_interface_power_down_init( void );

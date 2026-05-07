@@ -9,7 +9,7 @@ MainWindow::MainWindow( QWidget *parent ) :
 {
     ui->setupUi( this );
     serial = new QSerialPort( this );
-    serial->setPortName( "COM6" );
+    serial->setPortName( "COM3" );
     serial->setBaudRate( QSerialPort::Baud115200 );
 
     if ( serial->open( QIODevice::ReadOnly ) )

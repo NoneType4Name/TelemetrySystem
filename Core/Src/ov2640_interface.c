@@ -46,7 +46,7 @@ uint8_t ov2640_interface_sccb_read( uint8_t addr, uint8_t reg, uint8_t *buf, uin
     return ( ret == HAL_OK ) ? 0 : 1;
 }
 
-uint8_t ov2640_interface_sccb_write( uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len )
+uint8_t ov2640_interface_sccb_write( uint8_t addr, uint8_t reg, const uint8_t *buf, uint16_t len )
 {
     uint8_t buffer[ 2 ] = { 0 };
     HAL_StatusTypeDef ret;

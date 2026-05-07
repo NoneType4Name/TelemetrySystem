@@ -69,8 +69,6 @@ SD_HandleTypeDef hsd1;
 
 /* USER CODE BEGIN PV */
 
-auto width { WIDTH };
-auto height { HEIGHT };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -250,20 +248,16 @@ int main( void )
 
     // // min amplify AGC (COM9)
     // SCCB_Write( 0x14, 0xe0 ); // COM9: 128x max amp
-
-    // // exp time (AEC)
-    // SCCB_Write( 0x45, 0x3f );
-    // SCCB_Write( 0x10, 0xff );
-
-    // SCCB_Write( 0x13, 0xff ); // COM8: banding filter OFF
-
-    // SCCB_Write( 0xff, 0x00 );
     // HAL_Delay( 100 );
-    uint8_t reg_value;
+
+    ov2640_basic_set_light_mode( OV2640_LIGHT_MODE_AUTO );
+    ov2640_basic_set_color_saturation( OV2640_COLOR_SATURATION_POSITIVE_2 );
+    ov2640_basic_set_brightness( OV2640_BRIGHTNESS_POSITIVE_2 );
+    ov2640_basic_set_contrast( OV2640_CONTRAST_POSITIVE_2 );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, width * height );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, width * height / 2 );
+    memset( &frameBuffers, 0, WIDTH * HEIGHT );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) &frameBuffers, WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -712,7 +706,7 @@ static void MX_GPIO_Init( void )
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    frameLen          = width * height * 2;
+    frameLen          = WIDTH * HEIGHT * 2;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
     uint8_t spliter[] { "bgn" };
     auto d = CDC_Transmit_FS( spliter, 3 );
@@ -720,7 +714,7 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 
 void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )
 {
-    frameLen          = width * height * 2;
+    frameLen          = WIDTH * HEIGHT * 2;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
     uint8_t spliter[] { "bgn" };
     CDC_Transmit_FS( spliter, 3 );

@@ -58,7 +58,7 @@ extern "C"
  * @brief ov2640 basic example default definition
  */
 #define OV2640_BASIC_DEFAULT_CLOCK_RATE_DOUBLE     OV2640_BOOL_FALSE                /**< disable double rate */
-#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER         0x0010                           /**< div 0 */
+#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER         0x003                            /**< div 0 */
 #define OV2640_BASIC_DEFAULT_MODE                  OV2640_MODE_NORMAL               /**< normal mode */
 #define OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP OV2640_BOOL_FALSE                /**< disable power reset remap */
 #define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE          OV2640_OUTPUT_DRIVE_4_CAPABILITY /**< 2 capability */
@@ -67,7 +67,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_BAND_FILTER           OV2640_BOOL_TRUE                 /**< enable band filter */
 #define OV2640_BASIC_DEFAULT_AGC_CONTROL           OV2640_CONTROL_AUTO              /**< auto */
 #define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL      OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_8X                    /**< agc 8x */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_64X                   /**< agc 8x */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START   OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
 #define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
@@ -84,9 +84,9 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_BD50_AEC              0x0CA                            /**< bd50 aec */
 #define OV2640_BASIC_DEFAULT_BD60_AEC              0x0A8                            /**< bd60 aec */
 #define OV2640_BASIC_DEFAULT_RESOLUTION            OV2640_RESOLUTION_UXGA           /**< uxga */
-#define OV2640_BASIC_DEFAULT_ZOOM                  OV2640_BOOL_FALSE                /**< disable zoom */
+#define OV2640_BASIC_DEFAULT_ZOOM                  OV2640_BOOL_TRUE                 /**< disable zoom */
 #define OV2640_BASIC_DEFAULT_COLOR_BAR_TEST        OV2640_BOOL_FALSE                /**< disable color bar test */
-#define OV2640_BASIC_DEFAULT_PCLK                  OV2640_PCLK_DIVIDE_2             /**< pclk no effect */
+#define OV2640_BASIC_DEFAULT_PCLK                  OV2640_PCLK_NO_EFFECT            /**< pclk no effect */
 
     // #define OV2640_BASIC_DEFAULT_H_WINDOW_START 142 /**< 142 */
     // #define OV2640_BASIC_DEFAULT_H_WINDOW_END   342 /**< 942 */
@@ -96,7 +96,7 @@ extern "C"
     // #define OV2640_BASIC_DEFAULT_H_WINDOW_START 137 /**< 142 */
     // #define OV2640_BASIC_DEFAULT_H_WINDOW_END   537 /**< 942 */
     // #define OV2640_BASIC_DEFAULT_V_WINDOW_START 2   /**< 7 */
-    // #define OV2640_BASIC_DEFAULT_V_WINDOW_END   605 /**< 607 */
+    // #define OV2640_BASIC_DEFAULT_V_WINDOW_END   602 /**< 607 */
 
 #define OV2640_BASIC_DEFAULT_H_WINDOW_START 142 /**< 142 */
 #define OV2640_BASIC_DEFAULT_H_WINDOW_END   942 /**< 942 */
@@ -147,8 +147,8 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_CMX            OV2640_BOOL_TRUE  /**< enable cmx */
 #define OV2640_BASIC_DEFAULT_DSP_LP_DP          OV2640_BOOL_FALSE /**< disable lp dp */
 #define OV2640_BASIC_DEFAULT_DSP_ROUND          OV2640_BOOL_FALSE /**< disable round */
-#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV   0x02              /**< div 0 */
-#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV 0x02              /**< div 0 */
+#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV   0x00              /**< div 0 */
+#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV 0x00              /**< div 0 */
 
 #define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE 1600 /**< 1600 */
 #define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE   1200 /**< 1200 */
