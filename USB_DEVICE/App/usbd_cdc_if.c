@@ -308,24 +308,24 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
 {
     uint8_t result = USBD_OK;
     /* USER CODE BEGIN 13 */
-    if ( frameLen >= APP_TX_DATA_SIZE )
-    {
-        if ( *Len > 3 )
-            curentFrameBuffer += APP_TX_DATA_SIZE;
-        CDC_Transmit_FS( curentFrameBuffer, APP_TX_DATA_SIZE );
-        if ( frameLen - APP_TX_DATA_SIZE >= 0 )
-            frameLen -= APP_TX_DATA_SIZE;
-    }
-    else if ( frameLen )
-    {
-        CDC_Transmit_FS( curentFrameBuffer, frameLen );
-        frameLen = 0;
-    }
-    else if ( curentFrameBuffer )
-    {
-        CDC_Transmit_FS( spliter, 3 );
-        curentFrameBuffer = 0;
-    }
+    // if ( frameLen >= APP_TX_DATA_SIZE )
+    // {
+    //     if ( *Len > 3 )
+    //         curentFrameBuffer += APP_TX_DATA_SIZE;
+    //     CDC_Transmit_FS( curentFrameBuffer, APP_TX_DATA_SIZE );
+    //     if ( frameLen - APP_TX_DATA_SIZE >= 0 )
+    //         frameLen -= APP_TX_DATA_SIZE;
+    // }
+    // else if ( frameLen )
+    // {
+    //     CDC_Transmit_FS( curentFrameBuffer, frameLen );
+    //     frameLen = 0;
+    // }
+    // else if ( curentFrameBuffer )
+    // {
+    //     CDC_Transmit_FS( spliter, 3 );
+    //     curentFrameBuffer = 0;
+    // }
     UNUSED( Buf );
     UNUSED( Len );
     UNUSED( epnum );

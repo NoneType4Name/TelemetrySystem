@@ -23,14 +23,15 @@ MainWindow::MainWindow( QWidget *parent ) :
 void MainWindow::readSerialData()
 {
     auto rD { serial->readAll() };
-    if ( bytes.isEmpty() && rD.indexOf( "bgn" ) != 0 )
+    auto dd{rD.size()};
+    if ( bytes.isEmpty() && rD.indexOf( "bgnn" ) != 0 )
         return;
 
     bytes.append( rD );
-    if ( bytes.indexOf( "end" ) == -1 )
+    if ( bytes.indexOf( "endd" ) == -1 )
         return;
-    bytes.remove( 0, 3 );
-    bytes.remove( bytes.size() - 4, 3 );
+    bytes.remove( 0, 4 );
+    bytes.remove( bytes.size() - 5, 4 );
     auto d = bytes.size();
     QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 400, 300, QImage::Format_RGB16 );
     ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
