@@ -31,7 +31,6 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-uint8_t spliter[ 3 ] = { 'e', 'n', 'd' };
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -308,24 +307,22 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
 {
     uint8_t result = USBD_OK;
     /* USER CODE BEGIN 13 */
-    // if ( frameLen >= APP_TX_DATA_SIZE )
-    // {
-    //     if ( *Len > 3 )
-    //         curentFrameBuffer += APP_TX_DATA_SIZE;
-    //     CDC_Transmit_FS( curentFrameBuffer, APP_TX_DATA_SIZE );
-    //     if ( frameLen - APP_TX_DATA_SIZE >= 0 )
-    //         frameLen -= APP_TX_DATA_SIZE;
-    // }
-    // else if ( frameLen )
-    // {
-    //     CDC_Transmit_FS( curentFrameBuffer, frameLen );
-    //     frameLen = 0;
-    // }
-    // else if ( curentFrameBuffer )
-    // {
-    //     CDC_Transmit_FS( spliter, 3 );
-    //     curentFrameBuffer = 0;
-    // }
+    if ( frameLen >= ( 1u << 14u ) )
+    {
+        if ( *Len > 3 )
+            curentFrameBuffer += 1u << 14u;
+        CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
+        frameLen -= 1u << 14u;
+    }
+    else if ( frameLen )
+    {
+        CDC_Transmit_FS( curentFrameBuffer, frameLen );
+        frameLen = 0;
+    }
+    else if ( curentFrameBuffer )
+    {
+        curentFrameBuffer = 0;
+    }
     UNUSED( Buf );
     UNUSED( Len );
     UNUSED( epnum );

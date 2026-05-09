@@ -65,8 +65,8 @@ SD_HandleTypeDef hsd1;
 
 /* USER CODE BEGIN PV */
 uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
-// size_t frameLen { 0 };
-// uint8_t *curentFrameBuffer;
+size_t frameLen { 0 };
+uint8_t *curentFrameBuffer;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,21 +79,20 @@ static void MX_I2C1_Init( void );
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    // frameLen = WIDTH * HEIGHT * 2;
-    // curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
-    // uint8_t spliter[] { "bgn" };
-    auto p { reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] ) };
+    frameLen          = WIDTH * HEIGHT * 2 + 8;
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
+    auto p { curentFrameBuffer };
     p[ 0 ] = 'b';
     p[ 1 ] = 'g';
     p[ 2 ] = 'n';
     p[ 3 ] = 'n';
 
-    p      = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ WIDTH * HEIGHT + 4 / sizeof( uint16_t ) ] );
+    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 4 / sizeof( uint16_t ) ] );
     p[ 0 ] = 'e';
     p[ 1 ] = 'n';
     p[ 2 ] = 'd';
     p[ 3 ] = 'd';
-    auto d = CDC_Transmit_FS( ( uint8_t * ) ( &frameBuffers[ 0 ] ), WIDTH * HEIGHT * 2 + 8 );
+    auto d = CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
 }
 
 // void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )

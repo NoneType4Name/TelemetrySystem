@@ -58,7 +58,7 @@ extern "C"
  * @brief ov2640 basic example default definition
  */
 #define OV2640_BASIC_DEFAULT_CLOCK_RATE_DOUBLE     OV2640_BOOL_FALSE                /**< disable double rate */
-#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER         0x010                            /**< div 0 */
+#define OV2640_BASIC_DEFAULT_CLOCK_DIVIDER         0x04                             /**< div 0 */
 #define OV2640_BASIC_DEFAULT_MODE                  OV2640_MODE_NORMAL               /**< normal mode */
 #define OV2640_BASIC_DEFAULT_POWER_RESET_PIN_REMAP OV2640_BOOL_FALSE                /**< disable power reset remap */
 #define OV2640_BASIC_DEFAULT_OUTPUT_DRIVE          OV2640_OUTPUT_DRIVE_4_CAPABILITY /**< 2 capability */
