@@ -187,13 +187,11 @@ int main( void )
     HAL_Delay( 200 );
     ov2640_basic_init();
 
-    ov2640_basic_set_light_mode( OV2640_LIGHT_MODE_AUTO );
-    ov2640_basic_set_color_saturation( OV2640_COLOR_SATURATION_POSITIVE_2 );
-    ov2640_basic_set_brightness( OV2640_BRIGHTNESS_POSITIVE_2 );
-    ov2640_basic_set_contrast( OV2640_CONTRAST_POSITIVE_2 );
+    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, WIDTH * HEIGHT + 6 );
+    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */

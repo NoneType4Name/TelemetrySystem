@@ -67,7 +67,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_BAND_FILTER           OV2640_BOOL_TRUE                 /**< enable band filter */
 #define OV2640_BASIC_DEFAULT_AGC_CONTROL           OV2640_CONTROL_AUTO              /**< auto */
 #define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL      OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_64X                   /**< agc 8x */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_128X                  /**< agc 8x */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START   OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
 #define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
@@ -155,8 +155,8 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_OFFSET_X        0    /**< offset 0 */
 #define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y        0    /**< offset 0 */
 
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  400 /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT 300 /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  320 /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT 200 /**< 1200 */
 
 #define OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED         0x00              /**< speed 0 */
 #define OV2640_BASIC_DEFAULT_DSP_QSF                0x0C              /**< 0x0C */
