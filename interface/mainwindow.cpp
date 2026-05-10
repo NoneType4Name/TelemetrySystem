@@ -9,21 +9,36 @@ MainWindow::MainWindow( QWidget *parent ) :
 {
     ui->setupUi( this );
     serial = new QSerialPort( this );
-    serial->setPortName( "COM6" );
-    serial->setBaudRate( QSerialPort::Baud115200 );
+    connect( serial, &QSerialPort::readyRead, this, &MainWindow::readSerialData );
+    connect( serial, &QSerialPort::errorOccurred, this, &MainWindow::handleError );
+    connect( serial, &QSerialPort::aboutToClose, this, &MainWindow::handleClose );
 
-    if ( serial->open( QIODevice::ReadOnly ) )
+    handleClose();
+}
+
+void MainWindow::handleScan()
+{
+    QList<QSerialPortInfo> currentPorts { QSerialPortInfo::availablePorts()};
+    for(const auto&p:currentPorts)
     {
-        connect( serial, &QSerialPort::readyRead, this, &MainWindow::readSerialData );
-        connect( serial, &QSerialPort::errorOccurred, this, &MainWindow::handleError );
-        // connect( serial, &QSerialPort::aboutToClose, this, &MainWindow::handleError );
+        if(p.productIdentifier() == 1984)
+        {
+            if(timer)
+            {
+                delete timer;
+                timer = 0;
+            }
+            serial->setPort(p);
+            serial->setBaudRate(QSerialPort::Baud115200);
+            serial->open( QIODevice::ReadOnly );
+            break;
+        }
     }
 }
 
 void MainWindow::readSerialData()
 {
     auto rD { serial->readAll() };
-    auto dd{rD.size()};
     if ( bytes.isEmpty() && rD.indexOf( "bgnn" ) != 0 )
         return;
 
@@ -32,15 +47,24 @@ void MainWindow::readSerialData()
         return;
     bytes.remove( 0, 4 );
     bytes.remove( bytes.size() - 5, 4 );
-    auto d = bytes.size();
     QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 320, 200, QImage::Format_RGB16 );
     ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
-    // ui->label->setScaledContents(true);
     bytes.clear();
 }
+
 void MainWindow::handleError( QSerialPort::SerialPortError error )
 {
-    qDebug() << "ERROR!!!\t" << error << '\n';
+    if(error == QSerialPort::SerialPortError::ResourceError && serial->isOpen())
+        serial->close();
+}
+
+void MainWindow::handleClose()
+{
+    ui->label->clear();
+    bytes.clear();
+    timer = new QTimer( this );
+    connect( timer, &QTimer::timeout, this, &MainWindow::handleScan );
+    timer->start( 100 );
 }
 
 // void MainWindow::handleError( QSerialPort::SerialPortError error )
@@ -50,5 +74,7 @@ void MainWindow::handleError( QSerialPort::SerialPortError error )
 
 MainWindow::~MainWindow()
 {
+    delete timer;
+    delete serial;
     delete ui;
 }
