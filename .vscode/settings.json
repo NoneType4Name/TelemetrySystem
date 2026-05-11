@@ -1,0 +1,8 @@
+{
+    "clangd.arguments": [
+        "--compile-commands-dir=./build/Debug",
+        "--query-driver=${userHome}/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/13.3.1+st.9/bin/arm-none-eabi-g++.exe",
+        "--query-driver=${userHome}/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/13.3.1+st.9/bin/arm-none-eabi-gcc.exe"
+        // "-header-insertion=never"
+    ]
+}

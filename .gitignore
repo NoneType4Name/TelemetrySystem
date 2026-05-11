@@ -8,8 +8,8 @@ mx.scratch
 CMakePresets.json
 !CMakeLists.txt
 .clangd
-.vscode
 *.s
 .*
+!.vscode
 !.gitignore
 !.clang-format

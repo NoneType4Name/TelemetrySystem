@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32h7xx_hal_dma.h"
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
@@ -159,9 +158,6 @@ void HAL_DCMI_MspInit( DCMI_HandleTypeDef *hdcmi )
         hdma_dcmi.Init.Mode                = DMA_CIRCULAR;
         hdma_dcmi.Init.Priority            = DMA_PRIORITY_MEDIUM;
         hdma_dcmi.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;
-        // hdma_dcmi.Init.FIFOThreshold       = DMA_FIFO_THRESHOLD_FULL;
-        // hdma_dcmi.Init.MemBurst            = DMA_MBURST_SINGLE;
-        // hdma_dcmi.Init.PeriphBurst         = DMA_PBURST_SINGLE;
         if ( HAL_DMA_Init( &hdma_dcmi ) != HAL_OK )
         {
             Error_Handler();

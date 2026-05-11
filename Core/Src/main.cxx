@@ -19,17 +19,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "driver_ov2640.h"
 #include <stdint.h>
-extern "C"
-{
-#include "ov2640_interface.h"
-}
 #include "ov2640_basic.h"
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal_gpio.h"
@@ -156,7 +151,6 @@ int main( void )
     /* USER CODE END 1 */
 
     /* MPU Configuration--------------------------------------------------------*/
-
     MPU_Config();
 
     /* MCU Configuration--------------------------------------------------------*/
