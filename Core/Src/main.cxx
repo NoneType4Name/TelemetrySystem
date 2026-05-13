@@ -32,6 +32,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+
+#include <TestImage.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +61,7 @@ I2C_HandleTypeDef hi2c1;
 SD_HandleTypeDef hsd1;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+// uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
 /* USER CODE END PV */
