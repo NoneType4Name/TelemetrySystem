@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "driver_ov2640.h"
+#include <cstdlib>
 #include <stdint.h>
 #include "ov2640_basic.h"
 #include "stm32h750xx.h"
@@ -43,7 +44,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define RGB565_R( p ) ( ( ( p ) >> 11 ) & 0x1F )
+#define RGB565_G( p ) ( ( ( p ) >> 5 ) & 0x3F )
+#define RGB565_B( p ) ( ( p ) & 0x1F )
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -134,6 +137,24 @@ void my_printf( const char *fmt, ... )
     vprint( fmt, argp );
     va_end( argp );
     HAL_Delay( 50 );
+}
+
+bool inline isLightBlue( uint16_t pixel )
+{
+    uint8_t r = RGB565_R( pixel );
+    uint8_t g = RGB565_G( pixel );
+    uint8_t b = RGB565_B( pixel );
+
+    return ( b > ( 160 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > ( 10 * 31 / 255 ) ) && ( ( int ) ( g >> 1 ) - r > ( 10 * 31 / 255 ) ); // r << g << b (d = 10/255)
+}
+
+bool inline isGrey( uint16_t pixel )
+{
+    uint8_t r = RGB565_R( pixel );
+    uint8_t g = RGB565_G( pixel );
+    uint8_t b = RGB565_B( pixel );
+
+    return ( abs( ( int ) b - ( g >> 1 ) ) < ( 10 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 10 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 10 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
 /* USER CODE END PFP */
