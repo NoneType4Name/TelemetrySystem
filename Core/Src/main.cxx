@@ -145,7 +145,7 @@ bool inline isLightBlue( uint16_t pixel )
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
 
-    return ( b > ( 160 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > ( 10 * 31 / 255 ) ) && ( ( int ) ( g >> 1 ) - r > ( 10 * 31 / 255 ) ); // r << g << b (d = 10/255)
+    return ( b > ( 160 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > ( 0 * 31 / 255 ) ) && ( ( int ) ( g >> 1 ) - r > ( 10 * 31 / 255 ) ); // r << g << b (d = 10/255)
 }
 
 bool inline isGrey( uint16_t pixel )
