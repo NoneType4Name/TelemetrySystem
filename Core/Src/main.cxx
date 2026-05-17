@@ -47,6 +47,8 @@
 #define RGB565_R( p ) ( ( ( p ) >> 11 ) & 0x1F )
 #define RGB565_G( p ) ( ( ( p ) >> 5 ) & 0x3F )
 #define RGB565_B( p ) ( ( p ) & 0x1F )
+#define GET_X( o )    o % WIDTH
+#define GET_Y( o )    o / WIDTH
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -153,8 +155,35 @@ bool inline isGrey( uint16_t pixel )
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
+    return ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
+}
 
-    return ( abs( ( int ) b - ( g >> 1 ) ) < ( 10 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 10 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 10 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
+size_t findLeftDownBlue()
+{
+    for ( size_t h { HEIGHT - 1 }; h > 0; --h )
+        for ( size_t w { 0 }; w < WIDTH; ++w )
+        {
+            if ( isLightBlue( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
+            {
+                return 2 + w + h * WIDTH;
+            }
+        }
+
+    return 0;
+}
+
+size_t findRightUpBlue()
+{
+    for ( size_t h { 0 }; h < HEIGHT; ++h )
+        for ( size_t w { WIDTH - 1 }; w > 0; --w )
+        {
+            if ( isLightBlue( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
+            {
+                return 2 + w + h * WIDTH;
+            }
+        }
+
+    return 0;
 }
 
 /* USER CODE END PFP */
@@ -202,21 +231,50 @@ int main( void )
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 200 );
-    ov2640_basic_init();
+    // ov2640_basic_init();
 
-    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
-    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
+    // memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
+    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
+    uint16_t b { 0 };
+    uint16_t g { 0 };
+    size_t l, r;
+    if ( ( l = findLeftDownBlue() ) )
+    {
+        r = findRightUpBlue();
+        if ( !r )
+            goto w;
+
+        uint16_t x1 = GET_X( l );
+        uint16_t y1 = GET_Y( r );
+        uint16_t x2 = GET_X( r );
+        uint16_t y2 = GET_Y( l );
+
+        for ( uint16_t y { y1 }; y < y2; ++y )
+        {
+            for ( uint16_t x { x1 }; x < x2; ++x )
+            {
+                uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
+                if ( isLightBlue( pixel ) )
+                    ++b;
+
+                if ( isGrey( pixel ) )
+                    ++g;
+            }
+        }
+    }
+w:
     while ( 1 )
     {
+        HAL_DCMI_FrameEventCallback( 0 );
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
