@@ -89,12 +89,13 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     p[ 2 ] = 'n';
     p[ 3 ] = 'n';
 
-    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 4 / sizeof( uint16_t ) ] );
+    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 4 ] );
     p[ 0 ] = 'e';
     p[ 1 ] = 'n';
     p[ 2 ] = 'd';
     p[ 3 ] = 'd';
     auto d = CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
+    // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
 // void HAL_DMA_CpltCallback( DMA_HandleTypeDef *hdcmi )
@@ -158,7 +159,7 @@ bool inline isGrey( uint16_t pixel )
     return ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
-size_t findLeftDownBlue()
+size_t inline findLeftDownBlue()
 {
     for ( size_t h { HEIGHT - 1 }; h > 0; --h )
         for ( size_t w { 0 }; w < WIDTH; ++w )
@@ -172,7 +173,7 @@ size_t findLeftDownBlue()
     return 0;
 }
 
-size_t findRightUpBlue()
+size_t inline findRightUpBlue()
 {
     for ( size_t h { 0 }; h < HEIGHT; ++h )
         for ( size_t w { WIDTH - 1 }; w > 0; --w )
@@ -184,6 +185,52 @@ size_t findRightUpBlue()
         }
 
     return 0;
+}
+
+bool inline dayTestForBus( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 )
+{
+    uint16_t b { 0 }, g { 0 };
+    float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
+    if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
+    {
+        for ( uint16_t y { y1 }; y < y2; ++y )
+        {
+            for ( uint16_t x { x1 }; x < x2; ++x )
+            {
+                uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
+                if ( isLightBlue( pixel ) )
+                {
+                    ++b;
+                    frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
+                }
+
+                if ( isGrey( pixel ) )
+                {
+                    ++g;
+                    frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
+                }
+            }
+        }
+        // if ()
+    }
+    return false;
+}
+
+bool inline testForBus()
+{
+    size_t l, r;
+    if ( ( l = findLeftDownBlue() ) )
+    {
+        r = findRightUpBlue();
+        if ( !r )
+            return false;
+        uint16_t x1 = GET_X( l );
+        uint16_t y1 = GET_Y( r );
+        uint16_t x2 = GET_X( r );
+        uint16_t y2 = GET_Y( l );
+        dayTestForBus( x1, y1, x2, y2 );
+    }
+    return false;
 }
 
 /* USER CODE END PFP */
@@ -231,50 +278,23 @@ int main( void )
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 200 );
-    // ov2640_basic_init();
+    ov2640_basic_init();
 
-    // ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
-    // ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    // memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
-    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    uint16_t b { 0 };
-    uint16_t g { 0 };
-    size_t l, r;
-    if ( ( l = findLeftDownBlue() ) )
-    {
-        r = findRightUpBlue();
-        if ( !r )
-            goto w;
-
-        uint16_t x1 = GET_X( l );
-        uint16_t y1 = GET_Y( r );
-        uint16_t x2 = GET_X( r );
-        uint16_t y2 = GET_Y( l );
-
-        for ( uint16_t y { y1 }; y < y2; ++y )
-        {
-            for ( uint16_t x { x1 }; x < x2; ++x )
-            {
-                uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
-                if ( isLightBlue( pixel ) )
-                    ++b;
-
-                if ( isGrey( pixel ) )
-                    ++g;
-            }
-        }
-    }
-w:
+    // testForBus();
     while ( 1 )
     {
-        HAL_DCMI_FrameEventCallback( 0 );
+        // HAL_DCMI_FrameEventCallback( 0 );
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
