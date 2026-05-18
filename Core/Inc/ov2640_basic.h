@@ -83,7 +83,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_HISTO_HIGH            0x80                             /**< histo high */
 #define OV2640_BASIC_DEFAULT_BD50_AEC              0x0CA                            /**< bd50 aec */
 #define OV2640_BASIC_DEFAULT_BD60_AEC              0x0A8                            /**< bd60 aec */
-#define OV2640_BASIC_DEFAULT_RESOLUTION            OV2640_RESOLUTION_SVGA           /**< uxga */
+#define OV2640_BASIC_DEFAULT_RESOLUTION            OV2640_RESOLUTION_UXGA           /**< uxga */
 #define OV2640_BASIC_DEFAULT_ZOOM                  OV2640_BOOL_TRUE                 /**< disable zoom */
 #define OV2640_BASIC_DEFAULT_COLOR_BAR_TEST        OV2640_BOOL_FALSE                /**< disable color bar test */
 #define OV2640_BASIC_DEFAULT_PCLK                  OV2640_PCLK_NO_EFFECT            /**< pclk no effect */
@@ -137,8 +137,8 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_JPEG_OUTPUT_HREF_TIMING OV2640_HREF_TIMING_SENSOR       /**< sensor timing */
 #define OV2640_BASIC_DEFAULT_DSP_BYTE_SWAP               OV2640_BYTE_SWAP_UVUV           /**< uvuv */
 
-#define OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL 800 /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL   600 /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_IMAGE_HORIZONTAL 1600 /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_IMAGE_VERTICAL   1200 /**< 1200 */
 
 #define OV2640_BASIC_DEFAULT_DSP_DCW            OV2640_BOOL_TRUE  /**< enable dcw */
 #define OV2640_BASIC_DEFAULT_DSP_SDE            OV2640_BOOL_TRUE  /**< enable sde */
@@ -150,13 +150,17 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_VERTICAL_DIV   0x00              /**< div 0 */
 #define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_DIV 0x00              /**< div 0 */
 
-#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE 790 /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE   300 /**< 1200 */
-#define OV2640_BASIC_DEFAULT_DSP_OFFSET_X        10  /**< offset 0 */
-#define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y        0   /**< offset 0 */
+    // #define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE 320 /**< 1600 */
+    // #define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE   200 /**< 1200 */
+    // #define OV2640_BASIC_DEFAULT_DSP_OFFSET_X        750 /**< offset 0 */
+    // #define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y        576 /**< offset 0 */
+#define OV2640_BASIC_DEFAULT_DSP_HORIZONTAL_SIZE 1600 /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_VERTICAL_SIZE   1200 /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_OFFSET_X        0    /**< offset 0 */
+#define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y        0    /**< offset 0 */
 
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  100 /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT 48  /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  320 /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT 200 /**< 1200 */
 
 #define OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED         0x00              /**< speed 0 */
 #define OV2640_BASIC_DEFAULT_DSP_QSF                0x0C              /**< 0x0C */

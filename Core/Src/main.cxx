@@ -277,7 +277,7 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
-    HAL_Delay( 200 );
+    HAL_Delay( 400 );
     ov2640_basic_init();
 
     ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
