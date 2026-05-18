@@ -159,8 +159,8 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_DSP_OFFSET_X        0    /**< offset 0 */
 #define OV2640_BASIC_DEFAULT_DSP_OFFSET_Y        0    /**< offset 0 */
 
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  320 /**< 1600 */
-#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT 200 /**< 1200 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_WIDTH  WIDTH  /**< 1600 */
+#define OV2640_BASIC_DEFAULT_DSP_OUTPUT_HEIGHT HEIGHT /**< 1200 */
 
 #define OV2640_BASIC_DEFAULT_DSP_ZOOM_SPEED         0x00              /**< speed 0 */
 #define OV2640_BASIC_DEFAULT_DSP_QSF                0x0C              /**< 0x0C */

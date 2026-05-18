@@ -187,7 +187,50 @@ size_t inline findRightUpBlue()
     return 0;
 }
 
-bool inline dayTestForBus( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 )
+bool inline dayTestForBus()
+{
+    size_t l, r { 0 };
+    if ( ( l = findLeftDownBlue() ) )
+    {
+        r = findRightUpBlue();
+        if ( !r )
+            return false;
+    }
+
+    uint16_t x1 = GET_X( l );
+    uint16_t y1 = GET_Y( r );
+    uint16_t x2 = GET_X( r );
+    uint16_t y2 = GET_Y( l );
+    uint16_t b { 0 }, g { 0 };
+    float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
+    if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
+    {
+        for ( uint16_t y { y1 }; y < y2; ++y )
+        {
+            for ( uint16_t x { x1 }; x < x2; ++x )
+            {
+                uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
+                if ( isLightBlue( pixel ) )
+                {
+                    ++b;
+                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
+                }
+
+                if ( isGrey( pixel ) )
+                {
+                    ++g;
+                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
+                }
+            }
+        }
+        float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
+        if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
+            return true;
+    }
+    return false;
+}
+
+bool inline nightTestForBus()
 {
     uint16_t b { 0 }, g { 0 };
     float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
@@ -201,37 +244,32 @@ bool inline dayTestForBus( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 )
                 if ( isLightBlue( pixel ) )
                 {
                     ++b;
-                    frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
+                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
                 }
 
                 if ( isGrey( pixel ) )
                 {
                     ++g;
-                    frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
+                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
                 }
             }
         }
-        // if ()
+        float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
+        if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
+            return true;
     }
     return false;
 }
 
 bool inline testForBus()
 {
-    size_t l, r;
-    if ( ( l = findLeftDownBlue() ) )
-    {
-        r = findRightUpBlue();
-        if ( !r )
-            return false;
-        uint16_t x1 = GET_X( l );
-        uint16_t y1 = GET_Y( r );
-        uint16_t x2 = GET_X( r );
-        uint16_t y2 = GET_Y( l );
-        dayTestForBus( x1, y1, x2, y2 );
-    }
-    return false;
+    uint8_t avg;
+    ov2640_get_luminance_average( &gs_handle, &avg );
+    if ( avg > 40 )
+        return dayTestForBus();
+    return nightTestForBus();
 }
+uint8_t avg;
 
 /* USER CODE END PFP */
 
@@ -284,17 +322,17 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
+    // memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
+    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    // testForBus();
+    testForBus();
     while ( 1 )
     {
-        // HAL_DCMI_FrameEventCallback( 0 );
+        HAL_DCMI_FrameEventCallback( 0 );
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
