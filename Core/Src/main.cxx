@@ -142,6 +142,23 @@ void my_printf( const char *fmt, ... )
     HAL_Delay( 50 );
 }
 
+bool inline isRed( uint16_t pixel )
+{
+    uint8_t r = RGB565_R( pixel );
+    uint8_t g = RGB565_G( pixel );
+    uint8_t b = RGB565_B( pixel );
+
+    return ( r > ( 100 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 50 * 31 / 255 ) ) && ( r > b ) && ( ( int ) b - r > ( 10 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
+}
+
+bool inline isYellow( uint16_t pixel )
+{
+    uint8_t r = RGB565_R( pixel );
+    uint8_t g = RGB565_G( pixel );
+    uint8_t b = RGB565_B( pixel );
+    return ( b > 130 ) && ( b < ( g >> 1 ) ) && ( ( ( int ) ( g >> 1 ) - b ) > ( 20 * 31 / 255 ) ) && ( ( ( ( int ) g >> 1 ) - r ) < ( 20 * 31 / 255 ) ); // b > 130, b < g;r (d=20), g~r (d=20)
+}
+
 bool inline isLightBlue( uint16_t pixel )
 {
     uint8_t r = RGB565_R( pixel );
@@ -232,32 +249,32 @@ bool inline dayTestForBus()
 
 bool inline nightTestForBus()
 {
-    uint16_t b { 0 }, g { 0 };
-    float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
-    if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
-    {
-        for ( uint16_t y { y1 }; y < y2; ++y )
-        {
-            for ( uint16_t x { x1 }; x < x2; ++x )
-            {
-                uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
-                if ( isLightBlue( pixel ) )
-                {
-                    ++b;
-                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
-                }
+    // uint16_t b { 0 }, g { 0 };
+    // float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
+    // if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
+    // {
+    //     for ( uint16_t y { y1 }; y < y2; ++y )
+    //     {
+    //         for ( uint16_t x { x1 }; x < x2; ++x )
+    //         {
+    //             uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
+    //             if ( isLightBlue( pixel ) )
+    //             {
+    //                 ++b;
+    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
+    //             }
 
-                if ( isGrey( pixel ) )
-                {
-                    ++g;
-                    // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
-                }
-            }
-        }
-        float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
-        if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
-            return true;
-    }
+    //             if ( isGrey( pixel ) )
+    //             {
+    //                 ++g;
+    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
+    //             }
+    //         }
+    //     }
+    //     float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
+    //     if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
+    //         return true;
+    // }
     return false;
 }
 
