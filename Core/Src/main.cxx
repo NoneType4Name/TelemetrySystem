@@ -247,6 +247,42 @@ bool inline dayTestForBus()
     return false;
 }
 
+uint16_t findFourRedDots()
+{
+    uint16_t ldRed { 0 }, rdRed { 0 };
+    uint16_t min_w { 0 }, max_w { WIDTH };
+    for ( size_t h { HEIGHT - 1 }; h > 0; --h )
+    {
+        for ( size_t w { min_w }; w < max_w; ++w )
+        {
+            if ( isRed( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
+            {
+                if ( !min_w )
+                {
+                    min_w = w;
+                    w += 10;
+                }
+                else if ( !max_w )
+                {
+                    max_w = w + 10;
+                    break;
+                }
+                else if ( !ldRed )
+                {
+                    ldRed = w;
+                    w += 10;
+                }
+                else if ( !rdRed )
+                {
+                    rdRed = w;
+                    w += 10;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
 bool inline nightTestForBus()
 {
     // uint16_t b { 0 }, g { 0 };
