@@ -148,7 +148,7 @@ bool inline isRed( uint16_t pixel )
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
 
-    return ( r > ( 100 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 50 * 31 / 255 ) ) && ( r > b ) && ( ( int ) b - r > ( 10 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
+    return ( r > ( 100 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 50 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 50 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
 }
 
 bool inline isYellow( uint16_t pixel )
@@ -247,40 +247,85 @@ bool inline dayTestForBus()
     return false;
 }
 
-uint16_t findFourRedDots()
+void inline markAsVisited( uint16_t &pixel )
 {
-    uint16_t ldRed { 0 }, rdRed { 0 };
-    uint16_t min_w { 0 }, max_w { WIDTH };
-    for ( size_t h { HEIGHT - 1 }; h > 0; --h )
+    pixel |= 0x8000;
+}
+
+bool inline isVisited( uint16_t &pixel )
+{
+    return ( pixel & 0x8000 ) != 0;
+}
+
+void fillRedSquare( uint16_t leftUpPixelInd )
+{
+    int16_t minX = GET_X( frameBuffers[ 0 ][ leftUpPixelInd ] );
+    int16_t minY = GET_Y( frameBuffers[ 0 ][ leftUpPixelInd ] );
+    int16_t maxX = minX;
+    int16_t maxY = minY;
+    uint8_t changed;
+
+    do
     {
-        for ( size_t w { min_w }; w < max_w; ++w )
+        changed = 0;
+
+        for ( int16_t y = minY - 1; y <= maxY + 1; y++ )
         {
-            if ( isRed( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
+            if ( y < 0 || y >= HEIGHT ) continue;
+
+            for ( int16_t x = minX - 1; x <= maxX + 1; x++ )
             {
-                if ( !min_w )
+                if ( x < 0 || x >= WIDTH ) continue;
+
+                if ( isVisited( frameBuffers[ 0 ][ y * WIDTH + x ] ) )
                 {
-                    min_w = w;
-                    w += 10;
-                }
-                else if ( !max_w )
-                {
-                    max_w = w + 10;
-                    break;
-                }
-                else if ( !ldRed )
-                {
-                    ldRed = w;
-                    w += 10;
-                }
-                else if ( !rdRed )
-                {
-                    rdRed = w;
-                    w += 10;
+                    for ( int8_t dy = -1; dy <= 1; dy++ )
+                    {
+                        for ( int8_t dx = -1; dx <= 1; dx++ )
+                        {
+                            if ( dx == 0 && dy == 0 ) continue;
+
+                            int16_t nx = x + dx;
+                            int16_t ny = y + dy;
+
+                            if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
+                            {
+                                uint16_t nidx = ny * WIDTH + nx;
+                                if ( isRed( frameBuffers[ 0 ][ nidx ] ) && !isVisited( frameBuffers[ 0 ][ nidx ] ) )
+                                {
+                                    frameBuffers[ 0 ][ nidx ] = 0x07e0;
+                                    markAsVisited( frameBuffers[ 0 ][ nidx ] );
+                                    changed = 1;
+
+                                    if ( nx < minX ) minX = nx;
+                                    if ( nx > maxX ) maxX = nx;
+                                    if ( ny < minY ) minY = ny;
+                                    if ( ny > maxY ) maxY = ny;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    } while ( changed );
+}
+
+bool findFourRedDots()
+{
+    for ( size_t h { 0 }; h < HEIGHT; ++h )
+    {
+        for ( size_t w { 0 }; w < WIDTH; ++w )
+        {
+            auto pixel { &frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
+            if ( isRed( *pixel ) && !isVisited( *pixel ) )
+            {
+                markAsVisited( *pixel );
+                fillRedSquare( *pixel );
+            }
+        }
     }
-    return 0;
+    return true;
 }
 
 bool inline nightTestForBus()
@@ -311,15 +356,16 @@ bool inline nightTestForBus()
     //     if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
     //         return true;
     // }
+    findFourRedDots();
     return false;
 }
 
 bool inline testForBus()
 {
-    uint8_t avg;
-    ov2640_get_luminance_average( &gs_handle, &avg );
-    if ( avg > 40 )
-        return dayTestForBus();
+    // uint8_t avg;
+    // ov2640_get_luminance_average( &gs_handle, &avg );
+    // if ( avg > 40 )
+    //     return dayTestForBus();
     return nightTestForBus();
 }
 uint8_t avg;
@@ -368,11 +414,11 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
-    HAL_Delay( 400 );
-    ov2640_basic_init();
+    // HAL_Delay( 400 );
+    // ov2640_basic_init();
 
-    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
-    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    // ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
     // memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
