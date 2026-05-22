@@ -142,7 +142,7 @@ void my_printf( const char *fmt, ... )
     HAL_Delay( 50 );
 }
 
-bool inline isRed( uint16_t pixel )
+bool inline isRed( uint16_t pixel ) // todo: wrong
 {
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
