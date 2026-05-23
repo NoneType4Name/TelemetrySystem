@@ -148,7 +148,7 @@ bool inline isRed( uint16_t pixel ) // todo: wrong
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
 
-    return ( r > ( 100 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 50 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 50 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
+    return ( r > ( 80 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 40 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 40 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
 }
 
 bool inline isYellow( uint16_t pixel )
@@ -247,68 +247,31 @@ bool inline dayTestForBus()
     return false;
 }
 
-void inline markAsVisited( uint16_t &pixel )
+uint16_t fillRedSquare( uint16_t leftUpPixelInd )
 {
-    pixel |= 0x8000;
-}
-
-bool inline isVisited( uint16_t &pixel )
-{
-    return ( pixel & 0x8000 ) != 0;
-}
-
-void fillRedSquare( uint16_t leftUpPixelInd )
-{
-    int16_t minX = GET_X( frameBuffers[ 0 ][ leftUpPixelInd ] );
-    int16_t minY = GET_Y( frameBuffers[ 0 ][ leftUpPixelInd ] );
-    int16_t maxX = minX;
-    int16_t maxY = minY;
-    uint8_t changed;
-
-    do
+    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+    int16_t x                           = GET_X( leftUpPixelInd );
+    int16_t y                           = GET_Y( leftUpPixelInd );
+    for ( int8_t dy = -1; dy <= 1; dy++ )
     {
-        changed = 0;
-
-        for ( int16_t y = minY - 1; y <= maxY + 1; y++ )
+        for ( int8_t dx { -1 }; dx <= 1; dx++ )
         {
-            if ( y < 0 || y >= HEIGHT ) continue;
+            if ( dx == 0 && dy == 0 ) continue;
 
-            for ( int16_t x = minX - 1; x <= maxX + 1; x++ )
+            uint16_t nx = x + dx;
+            uint16_t ny = y + dy;
+
+            if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
             {
-                if ( x < 0 || x >= WIDTH ) continue;
-
-                if ( isVisited( frameBuffers[ 0 ][ y * WIDTH + x ] ) )
+                uint16_t nidx = 2 + ny * WIDTH + nx;
+                if ( isRed( frameBuffers[ 0 ][ nidx ] ) )
                 {
-                    for ( int8_t dy = -1; dy <= 1; dy++ )
-                    {
-                        for ( int8_t dx = -1; dx <= 1; dx++ )
-                        {
-                            if ( dx == 0 && dy == 0 ) continue;
-
-                            int16_t nx = x + dx;
-                            int16_t ny = y + dy;
-
-                            if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
-                            {
-                                uint16_t nidx = ny * WIDTH + nx;
-                                if ( isRed( frameBuffers[ 0 ][ nidx ] ) && !isVisited( frameBuffers[ 0 ][ nidx ] ) )
-                                {
-                                    frameBuffers[ 0 ][ nidx ] = 0x07e0;
-                                    markAsVisited( frameBuffers[ 0 ][ nidx ] );
-                                    changed = 1;
-
-                                    if ( nx < minX ) minX = nx;
-                                    if ( nx > maxX ) maxX = nx;
-                                    if ( ny < minY ) minY = ny;
-                                    if ( ny > maxY ) maxY = ny;
-                                }
-                            }
-                        }
-                    }
+                    return 1 + fillRedSquare( nidx );
                 }
             }
         }
-    } while ( changed );
+    }
+    return 1;
 }
 
 bool findFourRedDots()
@@ -317,11 +280,10 @@ bool findFourRedDots()
     {
         for ( size_t w { 0 }; w < WIDTH; ++w )
         {
-            auto pixel { &frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
-            if ( isRed( *pixel ) && !isVisited( *pixel ) )
+            auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
+            if ( isRed( pixel ) )
             {
-                markAsVisited( *pixel );
-                fillRedSquare( *pixel );
+                auto d = fillRedSquare( 2 + w + h * WIDTH );
             }
         }
     }
