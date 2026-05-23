@@ -156,7 +156,7 @@ bool inline isYellow( uint16_t pixel )
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
-    return ( b > 130 ) && ( b < ( g >> 1 ) ) && ( ( ( int ) ( g >> 1 ) - b ) > ( 20 * 31 / 255 ) ) && ( ( ( ( int ) g >> 1 ) - r ) < ( 20 * 31 / 255 ) ); // b > 130, b < g;r (d=20), g~r (d=20)
+    return ( b > ( 120 * 31 / 255 ) ) && ( b < ( g >> 1 ) ) && ( ( ( int ) ( g >> 1 ) - b ) > ( 10 * 31 / 255 ) ) && ( b < r ) && ( ( ( int ) r - b ) > ( 10 * 31 / 255 ) ); // b > 120, b < g;r (d=10)
 }
 
 bool inline isLightBlue( uint16_t pixel )
@@ -275,25 +275,65 @@ uint16_t fillRedSquare( uint16_t leftUpPixelInd )
     return r;
 }
 
-bool findFourRedDots()
+uint16_t fillYellowSquare( uint16_t leftUpPixelInd )
 {
-    uint8_t c { 0 };
+    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+    int16_t x                           = GET_X( leftUpPixelInd );
+    int16_t y                           = GET_Y( leftUpPixelInd );
+    uint16_t r { 1 };
+    for ( int8_t dy = -1; dy <= 1; dy++ )
+    {
+        for ( int8_t dx { -1 }; dx <= 1; dx++ )
+        {
+            if ( dx == 0 && dy == 0 ) continue;
+
+            uint16_t nx = x + dx;
+            uint16_t ny = y + dy;
+
+            if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
+            {
+                uint16_t nidx = ny * WIDTH + nx;
+                if ( isYellow( frameBuffers[ 0 ][ nidx ] ) )
+                {
+                    r += fillYellowSquare( nidx );
+                }
+            }
+        }
+    }
+    return r;
+}
+
+bool nightTestForBus() // by lights pattern
+{
+    uint8_t cr { 0 }, cy { 0 };
     uint8_t dwu { 0 };
     uint8_t dwd { 0 };
     uint8_t dhl { 0 };
     uint8_t dhr { 0 };
+    bool hasRedLightsPattern { 0 }, hasYellowLightsPattern { 0 };
     for ( uint16_t h { 0 }; h < HEIGHT; ++h )
     {
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
+            if ( hasRedLightsPattern && hasYellowLightsPattern )
+                return true;
             auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
-            if ( isRed( pixel ) )
+            if ( isYellow( pixel ) )
             {
-                auto d = fillRedSquare( 2 + w + h * WIDTH );
-                if ( d > 5 )
+                auto sy = fillYellowSquare( 2 + w + h * WIDTH );
+                if ( !cy && sy > 1 )
+                    ++cy;
+                else if ( cy && sy > 2 )
+                    ++cy;
+                if ( cy == 2 ) hasYellowLightsPattern = true;
+            }
+            else if ( isRed( pixel ) )
+            {
+                auto sr = fillRedSquare( 2 + w + h * WIDTH );
+                if ( sr > 5 )
                 {
-                    ++c;
-                    switch ( c )
+                    ++cr;
+                    switch ( cr )
                     {
                         case 1:
                         {
@@ -323,7 +363,7 @@ bool findFourRedDots()
                             uint16_t th = h - dhr;
                             if ( ( tw > 10 ) || ( th > 10 ) )
                                 return false;
-                            return true;
+                            hasRedLightsPattern = 1;
                             break;
                         }
                     }
@@ -331,20 +371,15 @@ bool findFourRedDots()
             }
         }
     }
-    return false;
-}
-
-bool inline nightTestForBus()
-{
-    return findFourRedDots();
+    return hasRedLightsPattern && hasYellowLightsPattern;
 }
 
 bool inline testForBus()
 {
-    // uint8_t avg;
-    // ov2640_get_luminance_average( &gs_handle, &avg );
-    // if ( avg > 40 )
-    //     return dayTestForBus();
+    uint8_t avg;
+    ov2640_get_luminance_average( &gs_handle, &avg );
+    if ( avg > 40 )
+        return dayTestForBus();
     return nightTestForBus();
 }
 uint8_t avg;
