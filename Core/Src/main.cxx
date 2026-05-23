@@ -310,6 +310,7 @@ bool nightTestForBus() // by lights pattern
     uint8_t dwd { 0 };
     uint8_t dhl { 0 };
     uint8_t dhr { 0 };
+    uint8_t yhu { 0 };
     bool hasRedLightsPattern { 0 }, hasYellowLightsPattern { 0 };
     for ( uint16_t h { 0 }; h < HEIGHT; ++h )
     {
@@ -321,11 +322,22 @@ bool nightTestForBus() // by lights pattern
             if ( isYellow( pixel ) )
             {
                 auto sy = fillYellowSquare( 2 + w + h * WIDTH );
-                if ( !cy && sy > 1 )
-                    ++cy;
-                else if ( cy && sy > 2 )
-                    ++cy;
-                if ( cy == 2 ) hasYellowLightsPattern = true;
+                ++cy;
+                switch ( cy )
+                {
+                    case 1:
+                        if ( sy < 2 )
+                            return false;
+                        yhu = h;
+                        break;
+                    case 2:
+                    {
+                        uint16_t dh = h - yhu;
+                        if ( dh < 5 )
+                            hasYellowLightsPattern = true;
+                        break;
+                    }
+                }
             }
             else if ( isRed( pixel ) )
             {
