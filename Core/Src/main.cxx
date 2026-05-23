@@ -252,6 +252,7 @@ uint16_t fillRedSquare( uint16_t leftUpPixelInd )
     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     int16_t x                           = GET_X( leftUpPixelInd );
     int16_t y                           = GET_Y( leftUpPixelInd );
+    uint16_t r { 1 };
     for ( int8_t dy = -1; dy <= 1; dy++ )
     {
         for ( int8_t dx { -1 }; dx <= 1; dx++ )
@@ -263,63 +264,79 @@ uint16_t fillRedSquare( uint16_t leftUpPixelInd )
 
             if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
             {
-                uint16_t nidx = 2 + ny * WIDTH + nx;
+                uint16_t nidx = ny * WIDTH + nx;
                 if ( isRed( frameBuffers[ 0 ][ nidx ] ) )
                 {
-                    return 1 + fillRedSquare( nidx );
+                    r += fillRedSquare( nidx );
                 }
             }
         }
     }
-    return 1;
+    return r;
 }
 
 bool findFourRedDots()
 {
-    for ( size_t h { 0 }; h < HEIGHT; ++h )
+    uint8_t c { 0 };
+    uint8_t dwu { 0 };
+    uint8_t dwd { 0 };
+    uint8_t dhl { 0 };
+    uint8_t dhr { 0 };
+    for ( uint16_t h { 0 }; h < HEIGHT; ++h )
     {
-        for ( size_t w { 0 }; w < WIDTH; ++w )
+        for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
             if ( isRed( pixel ) )
             {
                 auto d = fillRedSquare( 2 + w + h * WIDTH );
+                if ( d > 5 )
+                {
+                    ++c;
+                    switch ( c )
+                    {
+                        case 1:
+                        {
+                            dwu = w;
+                            dhl = h;
+                            break;
+                        }
+                        case 2:
+                        {
+                            uint16_t tw = w - dwu;
+                            dhr         = h;
+                            if ( tw > 10 )
+                                return false;
+                            break;
+                        }
+                        case 3:
+                        {
+                            dwd         = w;
+                            uint16_t th = h - dhl;
+                            if ( th > 7 )
+                                return false;
+                            break;
+                        }
+                        case 4:
+                        {
+                            uint16_t tw = w - dwd;
+                            uint16_t th = h - dhr;
+                            if ( ( tw > 10 ) || ( th > 10 ) )
+                                return false;
+                            return true;
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
-    return true;
+    return false;
 }
 
 bool inline nightTestForBus()
 {
-    // uint16_t b { 0 }, g { 0 };
-    // float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
-    // if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
-    // {
-    //     for ( uint16_t y { y1 }; y < y2; ++y )
-    //     {
-    //         for ( uint16_t x { x1 }; x < x2; ++x )
-    //         {
-    //             uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
-    //             if ( isLightBlue( pixel ) )
-    //             {
-    //                 ++b;
-    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
-    //             }
-
-    //             if ( isGrey( pixel ) )
-    //             {
-    //                 ++g;
-    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
-    //             }
-    //         }
-    //     }
-    //     float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
-    //     if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
-    //         return true;
-    // }
-    findFourRedDots();
-    return false;
+    return findFourRedDots();
 }
 
 bool inline testForBus()
@@ -390,7 +407,7 @@ int main( void )
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    testForBus();
+    auto d = testForBus();
     while ( 1 )
     {
         HAL_DCMI_FrameEventCallback( 0 );
