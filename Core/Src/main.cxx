@@ -34,7 +34,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include <TestImage.h>
+// #include <TestImage.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,9 +66,13 @@ I2C_HandleTypeDef hi2c1;
 SD_HandleTypeDef hsd1;
 
 /* USER CODE BEGIN PV */
-// uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
+extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
+bool CDC_RxStatus;
+bool zoomed { 0 };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -440,15 +444,15 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
-    // HAL_Delay( 400 );
-    // ov2640_basic_init();
+    HAL_Delay( 400 );
+    ov2640_basic_init();
 
-    // ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
-    // ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    // memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
-    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -457,6 +461,56 @@ int main( void )
     auto d = testForBus();
     while ( 1 )
     {
+        if ( CDC_RxStatus == 1 )
+        {
+            if ( UserRxBufferFS[ 0 ] == 's' ) // settings
+            {
+                UserTxBufferFS[ 0 ] = 's';
+                ov2640_get_offset_x( &gs_handle, reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 1 ] ) );
+                ov2640_get_offset_y( &gs_handle, reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 3 ] ) );
+
+                if ( zoomed )
+                    ( *reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 3 ] ) ) |= 0x8000;
+                CDC_Transmit_FS( UserTxBufferFS, 4 );
+            }
+            else if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
+            {
+                if ( !zoomed )
+                {
+                    zoomed = 1;
+                    ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
+                    ov2640_set_vertical_size( &gs_handle, 48 / 4 );
+                }
+                ov2640_set_offset_x( &gs_handle, ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) );
+                UserTxBufferFS[ 0 ] = 'x';
+                UserTxBufferFS[ 1 ] = UserRxBufferFS[ 1 ];
+                UserTxBufferFS[ 2 ] = UserRxBufferFS[ 2 ];
+                CDC_Transmit_FS( UserTxBufferFS, 3 );
+            }
+            else if ( UserRxBufferFS[ 0 ] == 'y' ) // y offset
+            {
+                if ( !zoomed )
+                {
+                    zoomed = 1;
+                    ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
+                    ov2640_set_vertical_size( &gs_handle, 48 / 4 );
+                }
+                ov2640_set_offset_y( &gs_handle, ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) );
+                UserTxBufferFS[ 0 ] = 'y';
+                UserTxBufferFS[ 1 ] = UserRxBufferFS[ 1 ];
+                UserTxBufferFS[ 2 ] = UserRxBufferFS[ 2 ];
+                CDC_Transmit_FS( UserTxBufferFS, 3 );
+            }
+            else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
+            {
+                zoomed = 0;
+                ov2640_set_offset_x( &gs_handle, 0 );
+                ov2640_set_offset_y( &gs_handle, 0 );
+                ov2640_set_horizontal_size( &gs_handle, 1600 / 4 );
+                ov2640_set_vertical_size( &gs_handle, 1200 / 4 );
+            }
+            CDC_RxStatus = 0;
+        }
         HAL_DCMI_FrameEventCallback( 0 );
         /* USER CODE END WHILE */
 

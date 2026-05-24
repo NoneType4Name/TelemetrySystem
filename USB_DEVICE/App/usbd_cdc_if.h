@@ -32,6 +32,7 @@ extern "C"
 #include "usbd_cdc.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include <stdbool.h>
 
 /* USER CODE END INCLUDE */
 
@@ -97,6 +98,7 @@ extern "C"
     /* USER CODE BEGIN EXPORTED_VARIABLES */
     extern uint8_t *curentFrameBuffer;
     extern size_t frameLen;
+    extern bool CDC_RxStatus;
     /* USER CODE END EXPORTED_VARIABLES */
 
     /**

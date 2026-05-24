@@ -261,6 +261,9 @@ static int8_t CDC_Receive_FS( uint8_t *Buf, uint32_t *Len )
     /* USER CODE BEGIN 6 */
     USBD_CDC_SetRxBuffer( &hUsbDeviceFS, &Buf[ 0 ] );
     USBD_CDC_ReceivePacket( &hUsbDeviceFS );
+    memcpy( UserRxBufferFS, Buf, *Len );
+    CDC_RxStatus = 1;
+
     return ( USBD_OK );
     /* USER CODE END 6 */
 }
@@ -307,22 +310,22 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
 {
     uint8_t result = USBD_OK;
     /* USER CODE BEGIN 13 */
-    if ( frameLen >= ( 1u << 14u ) )
-    {
-        if ( *Len > 3 )
-            curentFrameBuffer += 1u << 14u;
-        CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
-        frameLen -= 1u << 14u;
-    }
-    else if ( frameLen )
-    {
-        CDC_Transmit_FS( curentFrameBuffer, frameLen );
-        frameLen = 0;
-    }
-    else if ( curentFrameBuffer )
-    {
-        curentFrameBuffer = 0;
-    }
+    // if ( frameLen >= ( 1u << 14u ) )
+    // {
+    //     if ( *Len > 3 )
+    //         curentFrameBuffer += 1u << 14u;
+    //     CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
+    //     frameLen -= 1u << 14u;
+    // }
+    // else if ( frameLen )
+    // {
+    //     CDC_Transmit_FS( curentFrameBuffer, frameLen );
+    //     frameLen = 0;
+    // }
+    // else if ( curentFrameBuffer )
+    // {
+    //     curentFrameBuffer = 0;
+    // }
     UNUSED( Buf );
     UNUSED( Len );
     UNUSED( epnum );

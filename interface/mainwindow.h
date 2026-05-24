@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <QSerialPort>
 #include <QSerialPortInfo>
+#include <QPair>
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -27,7 +28,21 @@ class MainWindow : public QMainWindow
     void handleError( QSerialPort::SerialPortError error );
     void handleClose();
 
+    void on_leftPushButton_clicked();
+    void on_rightPushButton_clicked();
+    void on_upPushButton_clicked();
+    void on_downPushButton_clicked();
+
+    void on_zoomedPushButton_clicked();
+
+    void on_xOffsetLineEdit_editingFinished();
+
+    void on_yOffsetLineEdit_editingFinished();
+
   private:
+    void updateOffsetLineEdits();
+    QPair<uint16_t, uint16_t> offset { 0, 0 };
+    bool zoomed { 0 };
     QByteArray bytes {};
     QTimer *timer {};
     QSerialPort *serial;
