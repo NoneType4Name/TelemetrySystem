@@ -41,35 +41,41 @@ void MainWindow::handleScan()
 void MainWindow::readSerialData()
 {
     auto rD { serial->readAll() };
-    if ( rD[ 0 ] == 's' )
+    if ( rD.size() < 20 )
     {
-        offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-        auto H { *reinterpret_cast<uint16_t *>( &rD[ 3 ] ) };
-        zoomed        = H & 0x8000;
-        offset.second = H & 0x7FFF;
-        updateOffsetLineEdits();
-    }
-    else if ( rD[ 0 ] == 'x' )
-    {
-        offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-        updateOffsetLineEdits();
-    }
-    else if ( rD[ 0 ] == 'y' )
-    {
-        offset.second = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-        updateOffsetLineEdits();
+        if ( rD[ 0 ] == 's' )
+        {
+            offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
+            auto H { *reinterpret_cast<uint16_t *>( &rD[ 3 ] ) };
+            zoomed        = H & 0x8000;
+            offset.second = H & 0x7FFF;
+            updateOffsetLineEdits();
+        }
+        else if ( rD[ 0 ] == 'x' )
+        {
+            offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
+            updateOffsetLineEdits();
+        }
+        else if ( rD[ 0 ] == 'y' )
+        {
+            offset.second = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
+            updateOffsetLineEdits();
+        }
+        bytes.clear();
     }
     else if ( bytes.isEmpty() && rD.indexOf( "bgnn" ) != 0 )
         return;
-
-    bytes.append( rD );
-    if ( bytes.indexOf( "endd" ) == -1 )
-        return;
-    bytes.remove( 0, 4 );
-    bytes.remove( bytes.size() - 5, 4 );
-    QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 100, 48, QImage::Format_RGB16 );
-    ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
-    bytes.clear();
+    else
+    {
+        bytes.append( rD );
+        if ( bytes.indexOf( "endd" ) == -1 )
+            return;
+        bytes.remove( 0, 4 );
+        bytes.remove( bytes.size() - 5, 4 );
+        QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 100, 48, QImage::Format_RGB16 );
+        ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
+        bytes.clear();
+    }
 }
 
 void MainWindow::handleError( QSerialPort::SerialPortError error )

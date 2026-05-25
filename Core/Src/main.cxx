@@ -471,6 +471,7 @@ int main( void )
 
                 if ( zoomed )
                     ( *reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 3 ] ) ) |= 0x8000;
+
                 CDC_Transmit_FS( UserTxBufferFS, 4 );
             }
             else if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
