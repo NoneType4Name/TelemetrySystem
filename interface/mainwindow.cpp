@@ -41,36 +41,22 @@ void MainWindow::handleScan()
 void MainWindow::readSerialData()
 {
     auto rD { serial->readAll() };
-    if ( rD.size() < 20 )
+    if ( bytes.isEmpty() && rD.indexOf( "bgnn" ) != 0 )
+        return;
+    else
     {
-        if ( rD[ 0 ] == 's' )
+        if ( bytes.isEmpty() )
         {
-            offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-            auto H { *reinterpret_cast<uint16_t *>( &rD[ 3 ] ) };
+            offset.first = *reinterpret_cast<uint16_t *>( &rD[ 4 ] );
+            auto H { *reinterpret_cast<uint16_t *>( &rD[ 6 ] ) };
             zoomed        = H & 0x8000;
             offset.second = H & 0x7FFF;
             updateOffsetLineEdits();
         }
-        else if ( rD[ 0 ] == 'x' )
-        {
-            offset.first = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-            updateOffsetLineEdits();
-        }
-        else if ( rD[ 0 ] == 'y' )
-        {
-            offset.second = *reinterpret_cast<uint16_t *>( &rD[ 1 ] );
-            updateOffsetLineEdits();
-        }
-        bytes.clear();
-    }
-    else if ( bytes.isEmpty() && rD.indexOf( "bgnn" ) != 0 )
-        return;
-    else
-    {
         bytes.append( rD );
         if ( bytes.indexOf( "endd" ) == -1 )
             return;
-        bytes.remove( 0, 4 );
+        bytes.remove( 0, 8 );
         bytes.remove( bytes.size() - 5, 4 );
         QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 100, 48, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
@@ -186,6 +172,14 @@ void MainWindow::on_yOffsetLineEdit_editingFinished()
 
 void MainWindow::updateOffsetLineEdits()
 {
-    ui->xOffsetLineEdit->setText( QString::number( offset.first ) );
-    ui->yOffsetLineEdit->setText( QString::number( offset.second ) );
+    if ( !ui->xOffsetLineEdit->hasFocus() )
+        ui->xOffsetLineEdit->setText( QString::number( offset.first ) );
+    if ( !ui->yOffsetLineEdit->hasFocus() )
+        ui->yOffsetLineEdit->setText( QString::number( offset.second ) );
 }
+
+void MainWindow::on_shootButton_clicked()
+{
+    serial->write( "s" );
+}
+

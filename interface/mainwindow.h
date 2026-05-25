@@ -39,6 +39,8 @@ class MainWindow : public QMainWindow
 
     void on_yOffsetLineEdit_editingFinished();
 
+    void on_shootButton_clicked();
+
   private:
     void updateOffsetLineEdits();
     QPair<uint16_t, uint16_t> offset { 0, 0 };

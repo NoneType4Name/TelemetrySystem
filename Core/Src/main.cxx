@@ -1,7 +1,7 @@
 /* USER CODE BEGIN Header */
 /**
  ******************************************************************************
- * @file           : main.c
+ * @FatFsFile           : main.c
  * @brief          : Main program body
  ******************************************************************************
  * @attention
@@ -9,9 +9,9 @@
  * Copyright (c) 2025 STMicroelectronics.
  * All rights reserved.
  *
- * This software is licensed under terms that can be found in the LICENSE file
+ * This software is licensed under terms that can be found in the LICENSE FatFsFile
  * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
+ * If no LICENSE FatFsFile comes with this software, it is provided AS-IS.
  *
  ******************************************************************************
  */
@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -66,13 +67,16 @@ I2C_HandleTypeDef hi2c1;
 SD_HandleTypeDef hsd1;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
-bool CDC_RxStatus;
-bool zoomed { 0 };
+bool CDC_RxStatus { 0 };
+uint16_t offsetWithZoom[ 2 ] { 0, 0 };
+FATFS FatFs;
+FIL FatFsFile;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -85,20 +89,24 @@ static void MX_I2C1_Init( void );
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    frameLen          = WIDTH * HEIGHT * 2 + 8;
+    if ( curentFrameBuffer )
+        return;
+    frameLen          = WIDTH * HEIGHT * 2 + 12;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
     auto p { curentFrameBuffer };
-    p[ 0 ] = 'b';
-    p[ 1 ] = 'g';
-    p[ 2 ] = 'n';
-    p[ 3 ] = 'n';
+    p[ 0 ]                                       = 'b';
+    p[ 1 ]                                       = 'g';
+    p[ 2 ]                                       = 'n';
+    p[ 3 ]                                       = 'n';
+    ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetWithZoom[ 0 ];
+    ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
 
-    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 4 ] );
+    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
     p[ 0 ] = 'e';
     p[ 1 ] = 'n';
     p[ 2 ] = 'd';
     p[ 3 ] = 'd';
-    auto d = CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
+    auto d = CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
@@ -398,7 +406,152 @@ bool inline testForBus()
         return dayTestForBus();
     return nightTestForBus();
 }
-uint8_t avg;
+
+bool inline getZoomed()
+{
+    return offsetWithZoom[ 1 ] & 0x8000;
+}
+
+void inline setZoomed()
+{
+    offsetWithZoom[ 1 ] |= 0x8000;
+}
+
+void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
+{
+    FRESULT result;
+    UINT bytes_written;
+    uint32_t row_size  = ( ( 16 * WIDTH + 31 ) / 32 ) * 4;
+    uint32_t data_size = row_size * HEIGHT;
+
+#pragma pack( push, 1 )
+
+    struct
+    {
+        uint16_t file_type; // "BM" = 0x4D42
+        uint32_t file_size; // Size of the entire FatFsFile
+        uint16_t reserved1;
+        uint16_t reserved2;
+        uint32_t offset_data; // Headers (54) + 3 masks (12)
+    } BMPFileHeader;
+
+    struct
+    {
+        uint32_t size; // Size of this header (40)
+        int32_t width;
+        int32_t height;
+        uint16_t planes;      // Must be 1
+        uint16_t bit_count;   // 16 for RGB565
+        uint32_t compression; // 3 = BI_BITFIELDS
+        uint32_t size_image;
+        int32_t x_pixels_per_meter;
+        int32_t y_pixels_per_meter;
+        uint32_t colors_used;
+        uint32_t colors_important;
+    } BMPInfoHeader;
+
+#pragma pack( pop )
+    BMPFileHeader = {
+        .file_type   = 0x4D42,
+        .file_size   = sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 + data_size,
+        .reserved1   = 0,
+        .reserved2   = 0,
+        .offset_data = sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 };
+
+    BMPInfoHeader = {
+        .size               = sizeof( BMPInfoHeader ),
+        .width              = WIDTH,
+        .height             = HEIGHT,
+        .planes             = 1,
+        .bit_count          = 16,
+        .compression        = 3,
+        .size_image         = data_size,
+        .x_pixels_per_meter = 0,
+        .y_pixels_per_meter = 0,
+        .colors_used        = 0,
+        .colors_important   = 0 };
+
+    result = f_open( &FatFsFile, filename, FA_WRITE | FA_CREATE_ALWAYS );
+    if ( result != FR_OK )
+    {
+        return;
+    }
+
+    // Запись File Header
+    result = f_write( &FatFsFile, &BMPFileHeader, sizeof( BMPFileHeader ), &bytes_written );
+    if ( result != FR_OK || bytes_written != sizeof( BMPFileHeader ) )
+    {
+        f_close( &FatFsFile );
+        return;
+    }
+
+    // Запись Info Header
+    result = f_write( &FatFsFile, &BMPInfoHeader, sizeof( BMPInfoHeader ), &bytes_written );
+    if ( result != FR_OK || bytes_written != sizeof( BMPInfoHeader ) )
+    {
+        f_close( &FatFsFile );
+        return;
+    }
+    uint32_t rgb565_masks[ 3 ] = {
+        0xF800, // Red mask (5 bits)
+        0x07E0, // Green mask (6 bits)
+        0x001F  // Blue mask (5 bits)
+    };
+    result = f_write( &FatFsFile, rgb565_masks, sizeof( rgb565_masks ), &bytes_written );
+    if ( result != FR_OK || bytes_written != sizeof( rgb565_masks ) )
+    {
+        f_close( &FatFsFile );
+        return;
+    }
+
+    uint32_t padding_size = row_size - ( WIDTH * 2 );
+    uint8_t padding[ 4 ]  = { 0, 0, 0, 0 };
+
+    for ( int y { HEIGHT - 1 }; y >= 0; y-- )
+    {
+        result = f_write( &FatFsFile, &frameBuffers[ 0 ][ 4 + y * WIDTH ], WIDTH * 2, &bytes_written );
+        if ( result != FR_OK || bytes_written != ( UINT ) ( WIDTH * 2 ) )
+        {
+            f_close( &FatFsFile );
+            return;
+        }
+
+        if ( padding_size > 0 )
+        {
+            result = f_write( &FatFsFile, padding, padding_size, &bytes_written );
+            if ( result != FR_OK || bytes_written != ( UINT ) padding_size )
+            {
+                f_close( &FatFsFile );
+                return;
+            }
+        }
+    }
+
+    f_close( &FatFsFile );
+}
+
+// zero, if error
+uint32_t GetLastPhotoNumber()
+{
+    FRESULT result;
+    UINT bytes_read;
+    uint32_t temp_value;
+
+    result = f_open( &FatFsFile, "/last", FA_READ );
+    if ( result != FR_OK )
+        return 0;
+
+    result = f_read( &FatFsFile, &temp_value, sizeof( uint32_t ), &bytes_read );
+
+    f_close( &FatFsFile );
+
+    if ( result == FR_OK && bytes_read == sizeof( uint32_t ) )
+    {
+        return temp_value;
+    }
+
+    return 0;
+}
 
 /* USER CODE END PFP */
 
@@ -449,10 +602,11 @@ int main( void )
 
     ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    f_mount( &FatFs, SDPath, 1 );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, WIDTH * HEIGHT + 8 );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 4 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -461,58 +615,51 @@ int main( void )
     auto d = testForBus();
     while ( 1 )
     {
-        if ( CDC_RxStatus == 1 )
+        if ( CDC_RxStatus )
         {
-            if ( UserRxBufferFS[ 0 ] == 's' ) // settings
+            if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
             {
-                UserTxBufferFS[ 0 ] = 's';
-                ov2640_get_offset_x( &gs_handle, reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 1 ] ) );
-                ov2640_get_offset_y( &gs_handle, reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 3 ] ) );
-
-                if ( zoomed )
-                    ( *reinterpret_cast<uint16_t *>( &UserTxBufferFS[ 3 ] ) ) |= 0x8000;
-
-                CDC_Transmit_FS( UserTxBufferFS, 4 );
-            }
-            else if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
-            {
-                if ( !zoomed )
+                if ( !getZoomed() )
                 {
-                    zoomed = 1;
+                    setZoomed();
                     ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
                     ov2640_set_vertical_size( &gs_handle, 48 / 4 );
                 }
-                ov2640_set_offset_x( &gs_handle, ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) );
-                UserTxBufferFS[ 0 ] = 'x';
-                UserTxBufferFS[ 1 ] = UserRxBufferFS[ 1 ];
-                UserTxBufferFS[ 2 ] = UserRxBufferFS[ 2 ];
-                CDC_Transmit_FS( UserTxBufferFS, 3 );
+                offsetWithZoom[ 0 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
+                ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
             }
             else if ( UserRxBufferFS[ 0 ] == 'y' ) // y offset
             {
-                if ( !zoomed )
+                if ( !getZoomed() )
                 {
-                    zoomed = 1;
                     ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
                     ov2640_set_vertical_size( &gs_handle, 48 / 4 );
                 }
-                ov2640_set_offset_y( &gs_handle, ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) );
-                UserTxBufferFS[ 0 ] = 'y';
-                UserTxBufferFS[ 1 ] = UserRxBufferFS[ 1 ];
-                UserTxBufferFS[ 2 ] = UserRxBufferFS[ 2 ];
-                CDC_Transmit_FS( UserTxBufferFS, 3 );
+                offsetWithZoom[ 1 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) | 0x8000;
+                ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0x7FFF );
             }
             else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
             {
-                zoomed = 0;
+                offsetWithZoom[ 0 ] = 0;
+                offsetWithZoom[ 1 ] = 0;
                 ov2640_set_offset_x( &gs_handle, 0 );
                 ov2640_set_offset_y( &gs_handle, 0 );
                 ov2640_set_horizontal_size( &gs_handle, 1600 / 4 );
                 ov2640_set_vertical_size( &gs_handle, 1200 / 4 );
             }
+            else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
+            {
+                char name[ 10 ];
+                uint32_t photoNum { GetLastPhotoNumber() };
+                if ( photoNum )
+                {
+                    sprintf( name, "img%d.bmp", photoNum );
+                    SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                }
+            }
             CDC_RxStatus = 0;
         }
-        HAL_DCMI_FrameEventCallback( 0 );
+        // HAL_DCMI_FrameEventCallback( 0 );
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -823,17 +970,17 @@ void Error_Handler( void )
 }
 #ifdef USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
+ * @brief  Reports the name of the source FatFsFile and the source line number
  *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
+ * @param  FatFsFile: pointer to the source FatFsFile name
  * @param  line: assert_param error line source number
  * @retval None
  */
-void assert_failed( uint8_t *file, uint32_t line )
+void assert_failed( uint8_t *FatFsFile, uint32_t line )
 {
     /* USER CODE BEGIN 6 */
-    /* User can add his own implementation to report the file name and line number,
-       //ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+    /* User can add his own implementation to report the FatFsFile name and line number,
+       //ex: printf("Wrong parameters value: FatFsFile %s on line %d\r\n", FatFsFile, line) */
     /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

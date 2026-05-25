@@ -284,10 +284,7 @@ uint8_t CDC_Transmit_FS( uint8_t *Buf, uint16_t Len )
     uint8_t result = USBD_OK;
     /* USER CODE BEGIN 7 */
     USBD_CDC_HandleTypeDef *hcdc = ( USBD_CDC_HandleTypeDef * ) hUsbDeviceFS.pClassData;
-    if ( Len < 10 )
-    {
-        hcdc->TxState = 0;
-    }
+
     if ( hcdc->TxState != 0 )
     {
         return USBD_BUSY;
@@ -314,22 +311,21 @@ static int8_t CDC_TransmitCplt_FS( uint8_t *Buf, uint32_t *Len, uint8_t epnum )
 {
     uint8_t result = USBD_OK;
     /* USER CODE BEGIN 13 */
-    // if ( frameLen >= ( 1u << 14u ) )
-    // {
-    //     if ( *Len > 3 )
-    //         curentFrameBuffer += 1u << 14u;
-    //     CDC_Transmit_FS( curentFrameBuffer, 1u << 14u );
-    //     frameLen -= 1u << 14u;
-    // }
-    // else if ( frameLen )
-    // {
-    //     CDC_Transmit_FS( curentFrameBuffer, frameLen );
-    //     frameLen = 0;
-    // }
-    // else if ( curentFrameBuffer )
-    // {
-    //     curentFrameBuffer = 0;
-    // }
+    if ( frameLen >= ( 1u << 12u ) )
+    {
+        curentFrameBuffer += 1u << 12u;
+        CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
+        frameLen -= 1u << 12u;
+    }
+    else if ( frameLen )
+    {
+        CDC_Transmit_FS( curentFrameBuffer, frameLen );
+        frameLen = 0;
+    }
+    else if ( curentFrameBuffer )
+    {
+        curentFrameBuffer = 0;
+    }
     UNUSED( Buf );
     UNUSED( Len );
     UNUSED( epnum );
