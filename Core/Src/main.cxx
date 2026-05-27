@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -34,6 +33,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include "ESP8266.h"
 
 // #include <TestImage.h>
 /* USER CODE END Includes */
@@ -66,6 +66,8 @@ I2C_HandleTypeDef hi2c1;
 
 SD_HandleTypeDef hsd1;
 
+UART_HandleTypeDef huart3;
+
 /* USER CODE BEGIN PV */
 uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
@@ -85,6 +87,7 @@ static void MPU_Config( void );
 static void MX_GPIO_Init( void );
 static void MX_DMA_Init( void );
 static void MX_I2C1_Init( void );
+static void MX_USART3_UART_Init( void );
 /* USER CODE BEGIN PFP */
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
@@ -596,18 +599,25 @@ int main( void )
     MX_DCMI_Init();
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
+    MX_USART3_UART_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
+
+    // init SD
+    f_mount( &FatFs, SDPath, 1 );
+
+    // init camera
     ov2640_basic_init();
 
     ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
-    f_mount( &FatFs, SDPath, 1 );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
     memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
+    // init ESP
+    ESP8266_SetConfig();
     /* USER CODE END 2 */
 
     /* Infinite loop */
@@ -838,6 +848,52 @@ void MX_SDMMC1_SD_Init( void )
 }
 
 /**
+ * @brief USART3 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_USART3_UART_Init( void )
+{
+    /* USER CODE BEGIN USART3_Init 0 */
+
+    /* USER CODE END USART3_Init 0 */
+
+    /* USER CODE BEGIN USART3_Init 1 */
+
+    /* USER CODE END USART3_Init 1 */
+    huart3.Instance                    = USART3;
+    huart3.Init.BaudRate               = 115200;
+    huart3.Init.WordLength             = UART_WORDLENGTH_8B;
+    huart3.Init.StopBits               = UART_STOPBITS_1;
+    huart3.Init.Parity                 = UART_PARITY_NONE;
+    huart3.Init.Mode                   = UART_MODE_TX_RX;
+    huart3.Init.HwFlowCtl              = UART_HWCONTROL_NONE;
+    huart3.Init.OverSampling           = UART_OVERSAMPLING_16;
+    huart3.Init.OneBitSampling         = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart3.Init.ClockPrescaler         = UART_PRESCALER_DIV1;
+    huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    if ( HAL_UART_Init( &huart3 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    if ( HAL_UARTEx_SetTxFifoThreshold( &huart3, UART_TXFIFO_THRESHOLD_1_8 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    if ( HAL_UARTEx_SetRxFifoThreshold( &huart3, UART_RXFIFO_THRESHOLD_1_8 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    if ( HAL_UARTEx_DisableFifoMode( &huart3 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    /* USER CODE BEGIN USART3_Init 2 */
+
+    /* USER CODE END USART3_Init 2 */
+}
+
+/**
  * Enable DMA controller clock
  */
 static void MX_DMA_Init( void )
@@ -868,8 +924,8 @@ static void MX_GPIO_Init( void )
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOH_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOD_CLK_ENABLE();
 
     /*Configure GPIO pin Output Level */
     HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
@@ -970,13 +1026,13 @@ void Error_Handler( void )
 }
 #ifdef USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source FatFsFile and the source line number
+ * @brief  Reports the name of the source file and the source line number
  *         where the assert_param error has occurred.
- * @param  FatFsFile: pointer to the source FatFsFile name
+ * @param  file: pointer to the source file name
  * @param  line: assert_param error line source number
  * @retval None
  */
-void assert_failed( uint8_t *FatFsFile, uint32_t line )
+void assert_failed( uint8_t *file, uint32_t line )
 {
     /* USER CODE BEGIN 6 */
     /* User can add his own implementation to report the FatFsFile name and line number,

@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
+
 # STM32CubeMX generated symbols (macros)
-set(MX_Defines_Syms 
-	USE_PWR_LDO_SUPPLY 
-	USE_HAL_DRIVER 
-	STM32H750xx
+set(MX_Defines_Syms
+    USE_PWR_LDO_SUPPLY
+    USE_HAL_DRIVER
+    STM32H750xx
     $<$<CONFIG:Debug>:DEBUG>
 )
 
@@ -73,11 +75,11 @@ set(STM32_Drivers_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mmc_ex.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c
 )
 
 # Drivers Midllewares
-
-
 set(USB_Device_Library_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
@@ -94,16 +96,16 @@ set(FatFs_Src
 
 # Link directories setup
 set(MX_LINK_DIRS
-
 )
+
 # Project static libraries
-set(MX_LINK_LIBS 
+set(MX_LINK_LIBS
     STM32_Drivers
     ${TOOLCHAIN_LINK_LIBRARIES}
     USB_Device_Library
-	FatFs
-	
+    FatFs
 )
+
 # Interface library for includes and symbols
 add_library(stm32cubemx INTERFACE)
 target_include_directories(stm32cubemx INTERFACE ${MX_Include_Dirs})
@@ -113,7 +115,6 @@ target_compile_definitions(stm32cubemx INTERFACE ${MX_Defines_Syms})
 add_library(STM32_Drivers OBJECT)
 target_sources(STM32_Drivers PRIVATE ${STM32_Drivers_Src})
 target_link_libraries(STM32_Drivers PUBLIC stm32cubemx)
-
 
 # Create USB_Device_Library static library
 add_library(USB_Device_Library OBJECT)
@@ -138,6 +139,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME} ${MX_LINK_LIBS})
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_PROJECT_NAME}.map)
 
 # Validate that STM32CubeMX code is compatible with C standard
-if((CMAKE_C_STANDARD EQUAL 90) OR (CMAKE_C_STANDARD EQUAL 99))
+if((CMAKE_C_STANDARD EQUAL 90) OR(CMAKE_C_STANDARD EQUAL 99))
     message(ERROR "Generated code requires C11 or higher")
 endif()
