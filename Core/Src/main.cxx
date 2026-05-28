@@ -629,6 +629,10 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         while ( 1 )
             __NOP();
+    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        while ( 1 )
+            __NOP();
 
     if ( ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
     {
@@ -650,8 +654,7 @@ int main( void )
                                                                                 "Host: smartapp-code.sberdevices.ru\r\n"
                                                                                 "User-Agent: ESP8266\r\n"
                                                                                 "Accept: application/json\r\n"
-                                                                                "Connection: close\r\n"
-                                                                                "\r\n" );
+                                                                                "Connection: close\r\n" );
     while ( *dat != '\0' )
     {
         ++dat;

@@ -31,8 +31,8 @@ bool ESP8266_DisableEcho();
 bool ESP8266_ConnectTo( const char *wifiName, const char *password );
 bool ESP8266_DisconnectFromWifi();
 
-char *ESP8266_SendRequest( const char *type, const char *ip, uint8_t port, const char *request );
-bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint8_t port );
+char *ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request );
+bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port );
 bool ESP8266_AT_CIPSEND( int requestLength );
 bool ESP8266_AT_SendData( const char *request );
 

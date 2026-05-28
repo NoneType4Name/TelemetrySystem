@@ -54,12 +54,12 @@ bool ESP8266_DisconnectFromWifi()
     return ESP8266_Send( "AT+CWQAP\r\n" ) && ESP8266_Recv( "OK" );
 }
 
-char *ESP8266_SendRequest( const char *type, const char *ip, uint8_t port, const char *request )
+char *ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request )
 {
     return ESP8266_AT_CIPSTART( type, ip, port ) && ESP8266_AT_CIPSEND( strlen( request ) + 2 ) && ESP8266_AT_SendData( request ) ? ESP_RX_buff : NULL;
 }
 
-bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint8_t port )
+bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port )
 {
     sprintf( ESP_TX_buff, "AT+CIPSTART=\"%s\",\"%s\",%d\r\n", type, ip, port );
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
@@ -81,7 +81,7 @@ bool ESP8266_Send( const char *command )
 {
     // return HAL_UART_Transmit_DMA(ESP8266_huart, (uint8_t*)command, strlen(command));
     HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
-    return HAL_UART_Transmit( ESP8266_huart, ( uint8_t * ) command, strlen( command ), 10 ) == HAL_OK ? true : false;
+    return HAL_UART_Transmit( ESP8266_huart, ( uint8_t * ) command, strlen( command ), 100 ) == HAL_OK ? true : false;
 }
 
 bool ESP8266_Recv( const char *correctAnswer )
