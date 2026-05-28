@@ -66,6 +66,8 @@ void MX_DCMI_Init(void);
 #define BUTTON_GPIO_Port GPIOC
 #define DCMI_PWDN_Pin GPIO_PIN_7
 #define DCMI_PWDN_GPIO_Port GPIOA
+#define ESP_PW_Pin GPIO_PIN_12
+#define ESP_PW_GPIO_Port GPIOB
 #define DCMI_XCLK_Pin GPIO_PIN_8
 #define DCMI_XCLK_GPIO_Port GPIOA
 #define SDMMC1_SW_Pin GPIO_PIN_4

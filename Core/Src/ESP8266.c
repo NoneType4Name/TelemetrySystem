@@ -1,5 +1,4 @@
 #include "ESP8266.h"
-#include "main.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -55,12 +54,12 @@ bool ESP8266_DisconnectFromWifi()
     return ESP8266_Send( "AT+CWQAP\r\n" ) && ESP8266_Recv( "OK" );
 }
 
-char *ESP8266_SendRequest( char *type, char *ip, uint8_t port, char *request )
+char *ESP8266_SendRequest( const char *type, const char *ip, uint8_t port, const char *request )
 {
     return ESP8266_AT_CIPSTART( type, ip, port ) && ESP8266_AT_CIPSEND( strlen( request ) + 2 ) && ESP8266_AT_SendData( request ) ? ESP_RX_buff : NULL;
 }
 
-bool ESP8266_AT_CIPSTART( char *type, char *ip, uint8_t port )
+bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint8_t port )
 {
     sprintf( ESP_TX_buff, "AT+CIPSTART=\"%s\",\"%s\",%d\r\n", type, ip, port );
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
@@ -72,22 +71,23 @@ bool ESP8266_AT_CIPSEND( int requestLength )
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
 }
 
-bool ESP8266_AT_SendData( char *request )
+bool ESP8266_AT_SendData( const char *request )
 {
     sprintf( ESP_TX_buff, "%s\r\n", request );
-    return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
+    return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "}" );
 }
 
-bool ESP8266_Send( char *command )
+bool ESP8266_Send( const char *command )
 {
     // return HAL_UART_Transmit_DMA(ESP8266_huart, (uint8_t*)command, strlen(command));
+    HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
     return HAL_UART_Transmit( ESP8266_huart, ( uint8_t * ) command, strlen( command ), 10 ) == HAL_OK ? true : false;
 }
 
-bool ESP8266_Recv( char *correctAnswer )
+bool ESP8266_Recv( const char *correctAnswer )
 {
     uint8_t prevRecvByte = 0;
-    uint32_t timeout     = 2000;
+    uint32_t timeout     = 5000;
     uint32_t time        = HAL_GetTick();
 
     ESP8266_ClearRecvBuff();
@@ -126,21 +126,10 @@ void HAL_UART_RxCpltCallback( UART_HandleTypeDef *huart )
     }
 }
 
-bool ESP8266_ConnectTo( char *wifiName, char *password )
+bool ESP8266_ConnectTo( const char *wifiName, const char *password )
 {
     sprintf( ESP_TX_buff, "AT+CWJAP_CUR=\"%s\",\"%s\"\r\n", wifiName, password );
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
-}
-
-bool ESP8266_ConnectToAnyAccessPointFromDefaultList()
-{
-    int accessPointsAmount = sizeof( DefaultAccessPointsList ) / sizeof( DefaultAccessPointsList[ 0 ] );
-
-    for ( int i = 0; i < accessPointsAmount; i++ )
-        if ( ESP8266_ConnectTo( DefaultAccessPointsList[ i ].accessPointName, DefaultAccessPointsList[ i ].accessPointPass ) )
-            return true;
-
-    return false;
 }
 
 char *ESP8266_GetAcceessPoints()

@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_gcc.h"
 #include "fatfs.h"
 #include "usb_device.h"
 
@@ -33,7 +34,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+extern "C"
+{
 #include "ESP8266.h"
+#include "espConfig.h"
+}
 
 // #include <TestImage.h>
 /* USER CODE END Includes */
@@ -78,6 +83,7 @@ bool CDC_RxStatus { 0 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
+extern char ESP_RX_buff[ ESP_RX_buff_size ];
 
 /* USER CODE END PV */
 
@@ -617,12 +623,45 @@ int main( void )
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     // init ESP
-    ESP8266_SetConfig();
+    ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
+    // ESP8266_Send( "AT+RST\r\n" );
+    ESP8266_Send( "AT+CWMODE=1\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        while ( 1 )
+            __NOP();
+
+    if ( ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    {
+        // #ifdef ESP_DEBUG
+        //         printf( "Connected to %s\r\n", ESP_SSID );
+        // #endif
+    }
+    else
+    {
+        while ( 1 )
+            __NOP();
+        // #ifdef ESP_DEBUG
+        //         printf( "Failed to connect to %s\r\n", ESP_SSID );
+        // #endif
+        //         return;
+    }
+
+    char *dat = ESP8266_SendRequest( "TCP", "smartapp-code.sberdevices.ru", 80, "GET /tools/api/now?tz=Europe/Moscow&format=dd/MM/yyyy HTTP/1.1\r\n"
+                                                                                "Host: smartapp-code.sberdevices.ru\r\n"
+                                                                                "User-Agent: ESP8266\r\n"
+                                                                                "Accept: application/json\r\n"
+                                                                                "Connection: close\r\n"
+                                                                                "\r\n" );
+    while ( *dat != '\0' )
+    {
+        ++dat;
+    }
+
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    auto d = testForBus();
+    // auto d = testForBus();
     while ( 1 )
     {
         if ( CDC_RxStatus )
@@ -669,7 +708,7 @@ int main( void )
             }
             CDC_RxStatus = 0;
         }
-        // HAL_DCMI_FrameEventCallback( 0 );
+
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -933,6 +972,9 @@ static void MX_GPIO_Init( void )
     /*Configure GPIO pin Output Level */
     HAL_GPIO_WritePin( DCMI_PWDN_GPIO_Port, DCMI_PWDN_Pin, GPIO_PIN_RESET );
 
+    /*Configure GPIO pin Output Level */
+    HAL_GPIO_WritePin( ESP_PW_GPIO_Port, ESP_PW_Pin, GPIO_PIN_SET );
+
     /*Configure GPIO pin : LED_Pin */
     GPIO_InitStruct.Pin   = LED_Pin;
     GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
@@ -952,6 +994,13 @@ static void MX_GPIO_Init( void )
     GPIO_InitStruct.Pull  = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init( DCMI_PWDN_GPIO_Port, &GPIO_InitStruct );
+
+    /*Configure GPIO pin : ESP_PW_Pin */
+    GPIO_InitStruct.Pin   = ESP_PW_Pin;
+    GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull  = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init( ESP_PW_GPIO_Port, &GPIO_InitStruct );
 
     /*Configure GPIO pin : DCMI_XCLK_Pin */
     GPIO_InitStruct.Pin       = DCMI_XCLK_Pin;
