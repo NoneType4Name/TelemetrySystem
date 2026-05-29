@@ -182,4 +182,3 @@ void MainWindow::on_shootButton_clicked()
 {
     serial->write( "s" );
 }
-

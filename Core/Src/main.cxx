@@ -70,6 +70,7 @@ I2C_HandleTypeDef hi2c1;
 
 SD_HandleTypeDef hsd1;
 
+TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart3;
@@ -81,7 +82,8 @@ extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
 bool CDC_RxStatus { 0 };
-bool canCameraWork { 0 };
+bool canCameraWork { 1 };
+bool newFrame { 0 };
 bool debugCameraPattern { 0 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
@@ -97,6 +99,7 @@ static void MX_GPIO_Init( void );
 static void MX_DMA_Init( void );
 static void MX_I2C1_Init( void );
 static void MX_USART3_UART_Init( void );
+static void MX_TIM3_Init( void );
 static void MX_TIM7_Init( void );
 /* USER CODE BEGIN PFP */
 
@@ -104,12 +107,19 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 {
     if ( htim->Instance == TIM7 )
     {
+        HAL_TIM_Base_Stop_IT( htim );
         canCameraWork = true;
+    }
+    else if ( htim->Instance == TIM3 )
+    {
+        HAL_TIM_Base_Stop_IT( htim );
+        HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
     }
 }
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
+    newFrame = true;
     if ( curentFrameBuffer )
         return;
     frameLen          = WIDTH * HEIGHT * 2 + 12;
@@ -421,13 +431,13 @@ bool nightTestForBus() // by lights pattern
     return hasRedLightsPattern && hasYellowLightsPattern;
 }
 
-bool inline testForBus()
+uint8_t inline testForBus()
 {
     uint8_t avg;
     ov2640_get_luminance_average( &gs_handle, &avg );
     if ( avg > 40 )
-        return dayTestForBus();
-    return nightTestForBus();
+        return dayTestForBus() ? 1 : 0;
+    return nightTestForBus() ? 2 : 0;
 }
 
 bool inline getZoomed()
@@ -554,18 +564,20 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
 }
 
 // zero, if error
-uint32_t GetLastPhotoNumber()
+uint32_t IncrementLastPhotoNumber()
 {
     FRESULT result;
     UINT bytes_read;
     uint32_t temp_value;
 
-    result = f_open( &FatFsFile, "/last", FA_READ );
+    result = f_open( &FatFsFile, "last", FA_READ | FA_WRITE );
     if ( result != FR_OK )
         return 0;
 
     result = f_read( &FatFsFile, &temp_value, sizeof( uint32_t ), &bytes_read );
-
+    f_lseek( &FatFsFile, 0 );
+    f_write( &FatFsFile, &++temp_value, sizeof( uint32_t ), &bytes_read );
+    f_sync( &FatFsFile );
     f_close( &FatFsFile );
 
     if ( result == FR_OK && bytes_read == sizeof( uint32_t ) )
@@ -576,10 +588,15 @@ uint32_t GetLastPhotoNumber()
     return 0;
 }
 
-void StartCountdownTim7()
+void StartCountdown()
 {
-    __HAL_TIM_SET_COUNTER( &htim7, 0 );
-    HAL_TIM_OnePulse_Start_IT( &htim7, TIM_CHANNEL_ALL );
+    HAL_TIM_Base_Start_IT( &htim7 );
+}
+
+void enableLed2ms()
+{
+    HAL_TIM_Base_Start_IT( &htim3 );
+    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_SET );
 }
 
 /* USER CODE END PFP */
@@ -626,6 +643,7 @@ int main( void )
     MX_I2C1_Init();
     MX_USB_DEVICE_Init();
     MX_USART3_UART_Init();
+    MX_TIM3_Init();
     MX_TIM7_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
@@ -645,47 +663,42 @@ int main( void )
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
-    // ESP8266_Send( "AT+RST\r\n" );
-    ESP8266_Send( "AT+CWMODE=1\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        while ( 1 )
-            __NOP();
-    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        while ( 1 )
-            __NOP();
+    ESP8266_OFF();
+    // ESP8266_Send( "AT+CWMODE=1\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     while ( 1 )
+    //         __NOP();
+    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     while ( 1 )
+    //         __NOP();
+    // ESP8266_Send( "AT+CIPMUX=1\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     while ( 1 )
+    //         __NOP();
 
-    if ( ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
-    {
-        // #ifdef ESP_DEBUG
-        //         printf( "Connected to %s\r\n", ESP_SSID );
-        // #endif
-    }
-    else
-    {
-        while ( 1 )
-            __NOP();
-        // #ifdef ESP_DEBUG
-        //         printf( "Failed to connect to %s\r\n", ESP_SSID );
-        // #endif
-        //         return;
-    }
+    // if ( ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    // {
+    // }
+    // else
+    // {
+    //     while ( 1 )
+    //         __NOP();
+    // }
 
-    char *dat = ESP8266_SendRequest( "TCP", "smartapp-code.sberdevices.ru", 80, "GET /tools/api/now?tz=Europe/Moscow&format=dd/MM/yyyy HTTP/1.1\r\n"
-                                                                                "Host: smartapp-code.sberdevices.ru\r\n"
-                                                                                "User-Agent: ESP8266\r\n"
-                                                                                "Accept: application/json\r\n"
-                                                                                "Connection: close\r\n" );
-    while ( *dat != '\0' )
-    {
-        ++dat;
-    }
+    // ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+    //                                                        "Host: moscowtransport.app\r\n"
+    //                                                        "User-Agent: ESP8266\r\n"
+    //                                                        "Accept: application/json\r\n"
+    //                                                        "Connection: close\r\n" );
 
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     // auto d = testForBus();
+    uint64_t d { 0 }, md { 0 };
+    d++;
     while ( 1 )
     {
         if ( CDC_RxStatus )
@@ -722,40 +735,50 @@ int main( void )
             }
             else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
             {
-                char name[ 10 ];
-                uint32_t photoNum { GetLastPhotoNumber() };
+                char name[ 12 ];
+                uint32_t photoNum { IncrementLastPhotoNumber() };
                 if ( photoNum )
                 {
-                    sprintf( name, "img%d.bmp", photoNum );
+                    sprintf( name, "s_img%d.bmp", photoNum );
                     SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                    enableLed2ms();
                 }
             }
             CDC_RxStatus = 0;
         }
         if ( canCameraWork )
         {
-            bool b { testForBus() };
-            if ( b )
+            if ( newFrame )
             {
-                char name[ 10 ];
-                uint32_t photoNum { GetLastPhotoNumber() };
-                if ( photoNum )
+                if ( d > md )
+                    md = d;
+                d = 0;
+                uint8_t b { testForBus() };
+                if ( b )
                 {
-                    sprintf( name, "img%d.bmp", photoNum );
-                    SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                    char name[ 12 ];
+                    uint32_t photoNum { IncrementLastPhotoNumber() };
+                    if ( photoNum )
+                    {
+                        sprintf( name, "img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
+                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                        enableLed2ms();
+                    }
+                    canCameraWork = false;
+                    StartCountdown();
                 }
-                canCameraWork = false;
-                StartCountdownTim7();
-            }
-            else if ( debugCameraPattern )
-            {
-                char name[ 12 ];
-                uint32_t photoNum { GetLastPhotoNumber() };
-                if ( photoNum )
+                else if ( debugCameraPattern )
                 {
-                    sprintf( name, "d_img%d.bmp", photoNum );
-                    SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                    char name[ 12 ];
+                    uint32_t photoNum { IncrementLastPhotoNumber() };
+                    if ( photoNum )
+                    {
+                        sprintf( name, "d_img%d.bmp", photoNum );
+                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                        enableLed2ms();
+                    }
                 }
+                newFrame = false;
             }
         }
 
@@ -781,7 +804,7 @@ void SystemClock_Config( void )
 
     /** Configure the main internal regulator output voltage
      */
-    __HAL_PWR_VOLTAGESCALING_CONFIG( PWR_REGULATOR_VOLTAGE_SCALE3 );
+    __HAL_PWR_VOLTAGESCALING_CONFIG( PWR_REGULATOR_VOLTAGE_SCALE0 );
 
     while ( !__HAL_PWR_GET_FLAG( PWR_FLAG_VOSRDY ) )
     {
@@ -796,7 +819,7 @@ void SystemClock_Config( void )
     RCC_OscInitStruct.PLL.PLLState   = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
     RCC_OscInitStruct.PLL.PLLM       = 6;
-    RCC_OscInitStruct.PLL.PLLN       = 50;
+    RCC_OscInitStruct.PLL.PLLN       = 240;
     RCC_OscInitStruct.PLL.PLLP       = 2;
     RCC_OscInitStruct.PLL.PLLQ       = 2;
     RCC_OscInitStruct.PLL.PLLR       = 2;
@@ -813,13 +836,13 @@ void SystemClock_Config( void )
     RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_D3PCLK1 | RCC_CLOCKTYPE_D1PCLK1;
     RCC_ClkInitStruct.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.SYSCLKDivider  = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.AHBCLKDivider  = RCC_HCLK_DIV1;
+    RCC_ClkInitStruct.AHBCLKDivider  = RCC_HCLK_DIV4;
     RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
     RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
-    if ( HAL_RCC_ClockConfig( &RCC_ClkInitStruct, FLASH_LATENCY_2 ) != HAL_OK )
+    if ( HAL_RCC_ClockConfig( &RCC_ClkInitStruct, FLASH_LATENCY_1 ) != HAL_OK )
     {
         Error_Handler();
     }
@@ -876,7 +899,7 @@ static void MX_I2C1_Init( void )
 
     /* USER CODE END I2C1_Init 1 */
     hi2c1.Instance              = I2C1;
-    hi2c1.Init.Timing           = 0x00C0EAFF;
+    hi2c1.Init.Timing           = 0x107075B0;
     hi2c1.Init.OwnAddress1      = 0;
     hi2c1.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
     hi2c1.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
@@ -937,6 +960,53 @@ void MX_SDMMC1_SD_Init( void )
 }
 
 /**
+ * @brief TIM3 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM3_Init( void )
+{
+    /* USER CODE BEGIN TIM3_Init 0 */
+
+    /* USER CODE END TIM3_Init 0 */
+
+    TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+    TIM_OC_InitTypeDef sConfigOC          = { 0 };
+
+    /* USER CODE BEGIN TIM3_Init 1 */
+
+    /* USER CODE END TIM3_Init 1 */
+    htim3.Instance               = TIM3;
+    htim3.Init.Prescaler         = 999;
+    htim3.Init.CounterMode       = TIM_COUNTERMODE_UP;
+    htim3.Init.Period            = 1999;
+    htim3.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
+    htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    if ( HAL_TIM_OC_Init( &htim3 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode     = TIM_MASTERSLAVEMODE_DISABLE;
+    if ( HAL_TIMEx_MasterConfigSynchronization( &htim3, &sMasterConfig ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    sConfigOC.OCMode     = TIM_OCMODE_TIMING;
+    sConfigOC.Pulse      = 0;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    if ( HAL_TIM_OC_ConfigChannel( &htim3, &sConfigOC, TIM_CHANNEL_1 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    /* USER CODE BEGIN TIM3_Init 2 */
+
+    /* USER CODE END TIM3_Init 2 */
+    HAL_TIM_MspPostInit( &htim3 );
+}
+
+/**
  * @brief TIM7 Initialization Function
  * @param None
  * @retval None
@@ -953,15 +1023,11 @@ static void MX_TIM7_Init( void )
 
     /* USER CODE END TIM7_Init 1 */
     htim7.Instance               = TIM7;
-    htim7.Init.Prescaler         = 9999;
+    htim7.Init.Prescaler         = 59999;
     htim7.Init.CounterMode       = TIM_COUNTERMODE_UP;
     htim7.Init.Period            = 14999;
     htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if ( HAL_TIM_Base_Init( &htim7 ) != HAL_OK )
-    {
-        Error_Handler();
-    }
-    if ( HAL_TIM_OnePulse_Init( &htim7, TIM_OPMODE_SINGLE ) != HAL_OK )
     {
         Error_Handler();
     }
