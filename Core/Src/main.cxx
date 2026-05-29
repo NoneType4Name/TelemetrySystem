@@ -81,6 +81,8 @@ extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
 bool CDC_RxStatus { 0 };
+bool canCameraWork { 0 };
+bool debugCameraPattern { 0 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
@@ -97,6 +99,14 @@ static void MX_I2C1_Init( void );
 static void MX_USART3_UART_Init( void );
 static void MX_TIM7_Init( void );
 /* USER CODE BEGIN PFP */
+
+void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
+{
+    if ( htim->Instance == TIM7 )
+    {
+        canCameraWork = true;
+    }
+}
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
@@ -272,6 +282,7 @@ bool inline dayTestForBus()
 
 uint16_t fillRedSquare( uint16_t leftUpPixelInd )
 {
+    debugCameraPattern                  = 1;
     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     int16_t x                           = GET_X( leftUpPixelInd );
     int16_t y                           = GET_Y( leftUpPixelInd );
@@ -300,6 +311,7 @@ uint16_t fillRedSquare( uint16_t leftUpPixelInd )
 
 uint16_t fillYellowSquare( uint16_t leftUpPixelInd )
 {
+    debugCameraPattern                  = 1;
     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     int16_t x                           = GET_X( leftUpPixelInd );
     int16_t y                           = GET_Y( leftUpPixelInd );
@@ -564,6 +576,12 @@ uint32_t GetLastPhotoNumber()
     return 0;
 }
 
+void StartCountdownTim7()
+{
+    __HAL_TIM_SET_COUNTER( &htim7, 0 );
+    HAL_TIM_OnePulse_Start_IT( &htim7, TIM_CHANNEL_ALL );
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -713,6 +731,32 @@ int main( void )
                 }
             }
             CDC_RxStatus = 0;
+        }
+        if ( canCameraWork )
+        {
+            bool b { testForBus() };
+            if ( b )
+            {
+                char name[ 10 ];
+                uint32_t photoNum { GetLastPhotoNumber() };
+                if ( photoNum )
+                {
+                    sprintf( name, "img%d.bmp", photoNum );
+                    SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                }
+                canCameraWork = false;
+                StartCountdownTim7();
+            }
+            else if ( debugCameraPattern )
+            {
+                char name[ 12 ];
+                uint32_t photoNum { GetLastPhotoNumber() };
+                if ( photoNum )
+                {
+                    sprintf( name, "d_img%d.bmp", photoNum );
+                    SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                }
+            }
         }
 
         /* USER CODE END WHILE */
