@@ -41,6 +41,8 @@ class MainWindow : public QMainWindow
 
     void on_shootButton_clicked();
 
+    void on_cameraCheckBox_clicked();
+
   private:
     void updateOffsetLineEdits();
     QPair<uint16_t, uint16_t> offset { 0, 0 };

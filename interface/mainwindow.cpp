@@ -32,7 +32,6 @@ void MainWindow::handleScan()
             serial->setPort( p );
             serial->setBaudRate( QSerialPort::Baud115200 );
             serial->open( QIODevice::ReadWrite );
-            serial->write( "s" );
             break;
         }
     }
@@ -49,8 +48,9 @@ void MainWindow::readSerialData()
         {
             offset.first = *reinterpret_cast<uint16_t *>( &rD[ 4 ] );
             auto H { *reinterpret_cast<uint16_t *>( &rD[ 6 ] ) };
-            zoomed        = H & 0x8000;
-            offset.second = H & 0x7FFF;
+            zoomed = H & 0x8000;
+            ui->cameraCheckBox->setChecked( H & ( 1 << 14 ) );
+            offset.second = H & 0xFFF;
             updateOffsetLineEdits();
         }
         bytes.append( rD );
@@ -181,4 +181,9 @@ void MainWindow::updateOffsetLineEdits()
 void MainWindow::on_shootButton_clicked()
 {
     serial->write( "s" );
+}
+
+void MainWindow::on_cameraCheckBox_clicked()
+{
+    serial->write( "t" );
 }

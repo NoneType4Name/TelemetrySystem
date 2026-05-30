@@ -151,15 +151,18 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 
 void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
 {
-    if ( GPIO_Pin == GPIO_PIN_4 )
+    if ( GPIO_Pin == SDMMC1_SW_Pin )
     {
-        __HAL_GPIO_EXTI_CLEAR_FLAG( GPIO_PIN_0 );
+        // __HAL_GPIO_EXTI_CLEAR_FLAG( GPIO_PIN_0 );
         if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
         {
-            HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_SET );
+            HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
         }
         else
-            HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
+        {
+            HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_SET );
+            offsetWithZoom[ 1 ] &= 0xBFFF;
+        }
     }
     else
     {
@@ -252,7 +255,8 @@ bool inline dayTestForBus()
     size_t l, r { 0 };
     if ( ( l = findLeftDownBlue() ) )
     {
-        r = findRightUpBlue();
+        debugCameraPattern = 1;
+        r                  = findRightUpBlue();
         if ( !r )
             return false;
     }
@@ -292,7 +296,6 @@ bool inline dayTestForBus()
 
 uint16_t fillRedSquare( uint16_t leftUpPixelInd )
 {
-    debugCameraPattern                  = 1;
     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     int16_t x                           = GET_X( leftUpPixelInd );
     int16_t y                           = GET_Y( leftUpPixelInd );
@@ -442,12 +445,22 @@ uint8_t inline testForBus()
 
 bool inline getZoomed()
 {
-    return offsetWithZoom[ 1 ] & 0x8000;
+    return offsetWithZoom[ 1 ] & 1 << 15;
 }
 
 void inline setZoomed()
 {
-    offsetWithZoom[ 1 ] |= 0x8000;
+    offsetWithZoom[ 1 ] |= 1 << 15;
+}
+
+bool inline getToggle()
+{
+    return offsetWithZoom[ 1 ] & 1 << 14;
+}
+
+void inline ReSetToggle()
+{
+    offsetWithZoom[ 1 ] ^= ( 1 << 14 );
 }
 
 void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
@@ -697,8 +710,6 @@ int main( void )
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     // auto d = testForBus();
-    uint64_t d { 0 }, md { 0 };
-    d++;
     while ( 1 )
     {
         if ( CDC_RxStatus )
@@ -735,32 +746,33 @@ int main( void )
             }
             else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
             {
-                char name[ 12 ];
+                char name[ 18 ];
                 uint32_t photoNum { IncrementLastPhotoNumber() };
                 if ( photoNum )
                 {
-                    sprintf( name, "s_img%d.bmp", photoNum );
+                    sprintf( name, "/shots/img%d.bmp", photoNum );
                     SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                     enableLed2ms();
                 }
             }
+            else if ( UserRxBufferFS[ 0 ] == 't' ) // toggle
+            {
+                ReSetToggle();
+            }
             CDC_RxStatus = 0;
         }
-        if ( canCameraWork )
+        if ( canCameraWork && getToggle() )
         {
             if ( newFrame )
             {
-                if ( d > md )
-                    md = d;
-                d = 0;
                 uint8_t b { testForBus() };
                 if ( b )
                 {
-                    char name[ 12 ];
+                    char name[ 18 ];
                     uint32_t photoNum { IncrementLastPhotoNumber() };
                     if ( photoNum )
                     {
-                        sprintf( name, "img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
+                        sprintf( name, "/data/img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
                         SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                         enableLed2ms();
                     }
@@ -769,11 +781,11 @@ int main( void )
                 }
                 else if ( debugCameraPattern )
                 {
-                    char name[ 12 ];
+                    char name[ 18 ];
                     uint32_t photoNum { IncrementLastPhotoNumber() };
                     if ( photoNum )
                     {
-                        sprintf( name, "d_img%d.bmp", photoNum );
+                        sprintf( name, "/debug/dimg%d.bmp", photoNum );
                         SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                         enableLed2ms();
                     }
