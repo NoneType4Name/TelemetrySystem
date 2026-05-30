@@ -719,8 +719,8 @@ int main( void )
                 if ( !getZoomed() )
                 {
                     setZoomed();
-                    ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
-                    ov2640_set_vertical_size( &gs_handle, 48 / 4 );
+                    ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
+                    ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
                 }
                 offsetWithZoom[ 0 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
                 ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
@@ -729,8 +729,8 @@ int main( void )
             {
                 if ( !getZoomed() )
                 {
-                    ov2640_set_horizontal_size( &gs_handle, 100 / 4 );
-                    ov2640_set_vertical_size( &gs_handle, 48 / 4 );
+                    ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
+                    ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
                 }
                 offsetWithZoom[ 1 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) | 0x8000;
                 ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0x7FFF );

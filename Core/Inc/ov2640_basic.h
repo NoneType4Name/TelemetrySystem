@@ -67,7 +67,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_BAND_FILTER           OV2640_BOOL_TRUE                 /**< enable band filter */
 #define OV2640_BASIC_DEFAULT_AGC_CONTROL           OV2640_CONTROL_AUTO              /**< auto */
 #define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL      OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_32X                   /**< agc 8x */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_8X                    /**< agc 8x */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START   OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
 #define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
