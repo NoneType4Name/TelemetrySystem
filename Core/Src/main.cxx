@@ -19,6 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "ff.h"
+#include "ff_gen_drv.h"
+#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -79,11 +82,15 @@ UART_HandleTypeDef huart3;
 uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
+extern USBD_HandleTypeDef hUsbDeviceFS;
 size_t frameLen { 0 };
 uint8_t *curentFrameBuffer;
 bool CDC_RxStatus { 0 };
-bool canCameraWork { 1 };
+bool CameraCountDownEnded { 1 };
+bool sdCardPresented { 0 };
+bool sdCardMounted { 0 };
 bool newFrame { 0 };
+bool usbConnected { 0 };
 bool debugCameraPattern { 0 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
@@ -103,12 +110,26 @@ static void MX_TIM3_Init( void );
 static void MX_TIM7_Init( void );
 /* USER CODE BEGIN PFP */
 
+// void HAL_PCD_ConnectCallback( PCD_HandleTypeDef *hpcd )
+// {
+//     usbConnected      = 1;
+//     curentFrameBuffer = 0;
+//     frameLen          = 0;
+// }
+
+// void HAL_PCD_DisconnectCallback( PCD_HandleTypeDef *hpcd )
+// {
+//     usbConnected      = 0;
+//     curentFrameBuffer = 0;
+//     frameLen          = 0;
+// }
+
 void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 {
     if ( htim->Instance == TIM7 )
     {
         HAL_TIM_Base_Stop_IT( htim );
-        canCameraWork = true;
+        CameraCountDownEnded = true;
     }
     else if ( htim->Instance == TIM3 )
     {
@@ -120,7 +141,10 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
     newFrame = true;
-    if ( curentFrameBuffer )
+    // if ( curentFrameBuffer
+    // || !usbConnected
+    // )
+    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
         return;
     frameLen          = WIDTH * HEIGHT * 2 + 12;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
@@ -153,15 +177,19 @@ void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
 {
     if ( GPIO_Pin == SDMMC1_SW_Pin )
     {
-        // __HAL_GPIO_EXTI_CLEAR_FLAG( GPIO_PIN_0 );
         if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
         {
+            sdCardPresented = 1;
             HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
         }
         else
         {
-            HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_SET );
-            offsetWithZoom[ 1 ] &= 0xBFFF;
+            sdCardPresented = 0;
+            sdCardMounted   = 0;
+            f_mount( 0, SDPath, 1 );
+            MX_FATFS_DeInit();
+            if ( HAL_SD_DeInit( &hsd1 ) == HAL_OK )
+                HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_SET );
         }
     }
     else
@@ -465,6 +493,8 @@ void inline ReSetToggle()
 
 void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
 {
+    if ( !sdCardMounted )
+        return;
     FRESULT result;
     UINT bytes_written;
     uint32_t row_size  = ( ( 16 * WIDTH + 31 ) / 32 ) * 4;
@@ -572,13 +602,15 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
             }
         }
     }
-
+    f_sync( &FatFsFile );
     f_close( &FatFsFile );
 }
 
 // zero, if error
 uint32_t IncrementLastPhotoNumber()
 {
+    if ( !sdCardMounted )
+        return 0;
     FRESULT result;
     UINT bytes_read;
     uint32_t temp_value;
@@ -660,10 +692,11 @@ int main( void )
     MX_TIM7_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
-
-    // init SD
-    f_mount( &FatFs, SDPath, 1 );
-
+    if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
+    {
+        sdCardPresented = 1;
+        sdCardMounted   = f_mount( &FatFs, SDPath, 1 ) == FR_OK;
+    }
     // init camera
     ov2640_basic_init();
 
@@ -761,7 +794,7 @@ int main( void )
             }
             CDC_RxStatus = 0;
         }
-        if ( canCameraWork && getToggle() )
+        if ( CameraCountDownEnded && getToggle() && sdCardPresented )
         {
             if ( newFrame )
             {
@@ -776,7 +809,7 @@ int main( void )
                         SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                         enableLed2ms();
                     }
-                    canCameraWork = false;
+                    CameraCountDownEnded = false;
                     StartCountdown();
                 }
                 else if ( debugCameraPattern )
@@ -791,6 +824,20 @@ int main( void )
                     }
                 }
                 newFrame = false;
+            }
+        }
+        if ( sdCardPresented && !sdCardMounted )
+        {
+            HAL_SD_DeInit( &hsd1 );
+            if ( HAL_SD_Init( &hsd1 ) == HAL_OK )
+            {
+                MX_FATFS_Init();
+                if ( f_mount( &FatFs, SDPath, 1 ) != FR_OK )
+                {
+                    HAL_SD_DeInit( &hsd1 );
+                }
+                else
+                    sdCardMounted = 1;
             }
         }
 
@@ -989,9 +1036,9 @@ static void MX_TIM3_Init( void )
 
     /* USER CODE END TIM3_Init 1 */
     htim3.Instance               = TIM3;
-    htim3.Init.Prescaler         = 999;
+    htim3.Init.Prescaler         = 1199;
     htim3.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    htim3.Init.Period            = 1999;
+    htim3.Init.Period            = 99;
     htim3.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
     htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if ( HAL_TIM_OC_Init( &htim3 ) != HAL_OK )
