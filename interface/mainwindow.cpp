@@ -143,14 +143,14 @@ void MainWindow::on_rightPushButton_clicked()
     }
 }
 
-void MainWindow::on_zoomedPushButton_clicked()
-{
-    zoomed = 0;
-    serial->write( "f" );
-    offset.first  = 0;
-    offset.second = 0;
-    updateOffsetLineEdits();
-}
+// void MainWindow::on_zoomedPushButton_clicked()
+// {
+//     zoomed = 0;
+//     serial->write( "f" );
+//     offset.first  = 0;
+//     offset.second = 0;
+//     updateOffsetLineEdits();
+// }
 
 void MainWindow::on_xOffsetLineEdit_editingFinished()
 {

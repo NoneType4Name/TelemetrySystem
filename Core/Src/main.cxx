@@ -92,6 +92,7 @@ bool sdCardMounted { 0 };
 bool newFrame { 0 };
 bool usbConnected { 0 };
 bool debugCameraPattern { 0 };
+bool newOffsetProcessed { 1 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
@@ -141,9 +142,13 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
     newFrame = true;
-    // if ( curentFrameBuffer
-    // || !usbConnected
-    // )
+
+    if ( !newOffsetProcessed )
+    {
+        ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
+        ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0x7FFF );
+        newOffsetProcessed = 1;
+    }
     if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
         return;
     frameLen          = WIDTH * HEIGHT * 2 + 12;
@@ -161,7 +166,7 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     p[ 1 ] = 'n';
     p[ 2 ] = 'd';
     p[ 3 ] = 'd';
-    auto d = CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
+    CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
@@ -749,34 +754,34 @@ int main( void )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
             {
-                if ( !getZoomed() )
-                {
-                    setZoomed();
-                    ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
-                    ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
-                }
+                // if ( !getZoomed() )
+                // {
+                //     setZoomed();
+                //     ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
+                //     ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
+                // }
                 offsetWithZoom[ 0 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
-                ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
+                newOffsetProcessed  = 0;
             }
             else if ( UserRxBufferFS[ 0 ] == 'y' ) // y offset
             {
-                if ( !getZoomed() )
-                {
-                    ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
-                    ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
-                }
+                // if ( !getZoomed() )
+                // {
+                //     ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
+                //     ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
+                // }
                 offsetWithZoom[ 1 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) | 0x8000;
-                ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0x7FFF );
+                newOffsetProcessed  = 0;
             }
-            else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
-            {
-                offsetWithZoom[ 0 ] = 0;
-                offsetWithZoom[ 1 ] = 0;
-                ov2640_set_offset_x( &gs_handle, 0 );
-                ov2640_set_offset_y( &gs_handle, 0 );
-                ov2640_set_horizontal_size( &gs_handle, 1600 / 4 );
-                ov2640_set_vertical_size( &gs_handle, 1200 / 4 );
-            }
+            // else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
+            // {
+            //     offsetWithZoom[ 0 ] = 0;
+            //     offsetWithZoom[ 1 ] = 0;
+            //     ov2640_set_offset_x( &gs_handle, 0 );
+            //     ov2640_set_offset_y( &gs_handle, 0 );
+            //     ov2640_set_horizontal_size( &gs_handle, 1600 / 4 );
+            //     ov2640_set_vertical_size( &gs_handle, 1200 / 4 );
+            // }
             else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
             {
                 char name[ 18 ];

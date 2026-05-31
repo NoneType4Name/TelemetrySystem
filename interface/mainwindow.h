@@ -33,7 +33,7 @@ class MainWindow : public QMainWindow
     void on_upPushButton_clicked();
     void on_downPushButton_clicked();
 
-    void on_zoomedPushButton_clicked();
+    // void on_zoomedPushButton_clicked();
 
     void on_xOffsetLineEdit_editingFinished();
 
