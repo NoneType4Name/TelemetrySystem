@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+// #include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -146,13 +147,13 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     if ( !newOffsetProcessed )
     {
         ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
-        ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0x7FFF );
+        ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
         newOffsetProcessed = 1;
     }
     if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
         return;
     frameLen          = WIDTH * HEIGHT * 2 + 12;
-    curentFrameBuffer = reinterpret_cast<uint8_t *>( frameBuffers[ 0 ] );
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
     auto p { curentFrameBuffer };
     p[ 0 ]                                       = 'b';
     p[ 1 ]                                       = 'g';
@@ -235,7 +236,7 @@ bool inline isYellow( uint16_t pixel )
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
-    return ( b > ( 120 * 31 / 255 ) ) && ( b < ( g >> 1 ) ) && ( ( ( int ) ( g >> 1 ) - b ) > ( 10 * 31 / 255 ) ) && ( b < r ) && ( ( ( int ) r - b ) > ( 10 * 31 / 255 ) ); // b > 120, b < g;r (d=10)
+    return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
 }
 
 bool inline isLightBlue( uint16_t pixel )
@@ -397,7 +398,9 @@ bool nightTestForBus() // by lights pattern
     {
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
-            if ( hasRedLightsPattern && hasYellowLightsPattern )
+            if (
+                // hasRedLightsPattern &&
+                hasYellowLightsPattern )
                 return true;
             auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
             if ( isYellow( pixel ) )
@@ -407,9 +410,8 @@ bool nightTestForBus() // by lights pattern
                 switch ( cy )
                 {
                     case 1:
-                        if ( sy < 2 )
-                            return false;
-                        yhu = h;
+                        if ( sy > 2 )
+                            yhu = h;
                         break;
                     case 2:
                     {
@@ -420,48 +422,48 @@ bool nightTestForBus() // by lights pattern
                     }
                 }
             }
-            else if ( isRed( pixel ) )
-            {
-                auto sr = fillRedSquare( 2 + w + h * WIDTH );
-                if ( sr > 5 )
-                {
-                    ++cr;
-                    switch ( cr )
-                    {
-                        case 1:
-                        {
-                            dwu = w;
-                            dhl = h;
-                            break;
-                        }
-                        case 2:
-                        {
-                            uint16_t tw = w - dwu;
-                            dhr         = h;
-                            if ( tw > 10 )
-                                return false;
-                            break;
-                        }
-                        case 3:
-                        {
-                            dwd         = w;
-                            uint16_t th = h - dhl;
-                            if ( th > 7 )
-                                return false;
-                            break;
-                        }
-                        case 4:
-                        {
-                            uint16_t tw = w - dwd;
-                            uint16_t th = h - dhr;
-                            if ( ( tw > 10 ) || ( th > 10 ) )
-                                return false;
-                            hasRedLightsPattern = 1;
-                            break;
-                        }
-                    }
-                }
-            }
+            // else if ( isRed( pixel ) )
+            // {
+            //     auto sr = fillRedSquare( 2 + w + h * WIDTH );
+            //     if ( sr > 5 )
+            //     {
+            //         ++cr;
+            //         switch ( cr )
+            //         {
+            //             case 1:
+            //             {
+            //                 dwu = w;
+            //                 dhl = h;
+            //                 break;
+            //             }
+            //             case 2:
+            //             {
+            //                 uint16_t tw = w - dwu;
+            //                 dhr         = h;
+            //                 if ( tw > 10 )
+            //                     return false;
+            //                 break;
+            //             }
+            //             case 3:
+            //             {
+            //                 dwd         = w;
+            //                 uint16_t th = h - dhl;
+            //                 if ( th > 7 )
+            //                     return false;
+            //                 break;
+            //             }
+            //             case 4:
+            //             {
+            //                 uint16_t tw = w - dwd;
+            //                 uint16_t th = h - dhr;
+            //                 if ( ( tw > 10 ) || ( th > 10 ) )
+            //                     return false;
+            //                 hasRedLightsPattern = 1;
+            //                 break;
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
     return hasRedLightsPattern && hasYellowLightsPattern;
@@ -476,15 +478,15 @@ uint8_t inline testForBus()
     return nightTestForBus() ? 2 : 0;
 }
 
-bool inline getZoomed()
-{
-    return offsetWithZoom[ 1 ] & 1 << 15;
-}
+// bool inline getZoomed()
+// {
+//     return offsetWithZoom[ 1 ] & 1 << 15;
+// }
 
-void inline setZoomed()
-{
-    offsetWithZoom[ 1 ] |= 1 << 15;
-}
+// void inline setZoomed()
+// {
+//     offsetWithZoom[ 1 ] |= 1 << 15;
+// }
 
 bool inline getToggle()
 {
@@ -709,7 +711,8 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    // memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     // init ESP
@@ -747,9 +750,9 @@ int main( void )
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    // auto d = testForBus();
     while ( 1 )
     {
+        // HAL_DCMI_FrameEventCallback( 0 );
         if ( CDC_RxStatus )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
@@ -770,7 +773,7 @@ int main( void )
                 //     ov2640_set_horizontal_size( &gs_handle, WIDTH / 4 );
                 //     ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
                 // }
-                offsetWithZoom[ 1 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) ) | 0x8000;
+                offsetWithZoom[ 1 ] = ( ( offsetWithZoom[ 1 ] & ~0xFFF ) | ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) & 0xFFF ) );
                 newOffsetProcessed  = 0;
             }
             // else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
@@ -827,6 +830,7 @@ int main( void )
                         SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                         enableLed2ms();
                     }
+                    debugCameraPattern = 0;
                 }
                 newFrame = false;
             }

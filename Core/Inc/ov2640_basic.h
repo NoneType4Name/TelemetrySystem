@@ -67,12 +67,12 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_BAND_FILTER           OV2640_BOOL_TRUE                 /**< enable band filter */
 #define OV2640_BASIC_DEFAULT_AGC_CONTROL           OV2640_CONTROL_AUTO              /**< auto */
 #define OV2640_BASIC_DEFAULT_EXPOSURE_CONTROL      OV2640_CONTROL_AUTO              /**< auto */
-#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_8X                    /**< agc 8x */
+#define OV2640_BASIC_DEFAULT_AGC_GAIN_CEILING      OV2640_AGC_2X                    /**< agc 8x */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_H_START   OV2640_BOOL_FALSE                /**< disable zoom window horizontal start */
 #define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
 #define OV2640_BASIC_DEFAULT_LUMINANCE_HIGH        0x40                             /**< 0x40 */
-#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW         0x38                             /**< 0x38 */
+#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW         0x02                             /**< 0x38 */
 #define OV2640_BASIC_DEFAULT_FAST_MODE_HIGH        0x8                              /**< 0x8 */
 #define OV2640_BASIC_DEFAULT_FAST_MODE_LOW         0x2                              /**< 0x2 */
 #define OV2640_BASIC_DEFAULT_FRAME_LENGTH_ADJ      0x0022                           /**< 0x0000 */
@@ -106,7 +106,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_VSYNC_PULSE_WIDTH           0x0000                          /**< 0x0000 */
 #define OV2640_BASIC_DEFAULT_AGC_GAIN                    0x0000                          /**< 0x0000 */
 #define OV2640_BASIC_DEFAULT_DUMMY_FRAME                 OV2640_DUMMY_FRAME_NONE         /**< dummy frame none */
-#define OV2640_BASIC_DEFAULT_AEC                         0x0CC                           /**< 0x0CC */
+#define OV2640_BASIC_DEFAULT_AEC                         400                             /**< 0x0CC */
 #define OV2640_BASIC_DEFAULT_FRAME_EXPOSURE_PRE_ROW      0x40                            /**< 0x40 */
 #define OV2640_BASIC_DEFAULT_CHSYNC_HREF_SWAP            OV2640_BOOL_FALSE               /**< disable swap */
 #define OV2640_BASIC_DEFAULT_HREF_CHSYNC_SWAP            OV2640_BOOL_FALSE               /**< disable swap */

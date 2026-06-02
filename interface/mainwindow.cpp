@@ -48,7 +48,6 @@ void MainWindow::readSerialData()
         {
             offset.first = *reinterpret_cast<uint16_t *>( &rD[ 4 ] );
             auto H { *reinterpret_cast<uint16_t *>( &rD[ 6 ] ) };
-            zoomed = H & 0x8000;
             ui->cameraCheckBox->setChecked( H & ( 1 << 14 ) );
             offset.second = H & 0xFFF;
             updateOffsetLineEdits();
@@ -107,7 +106,7 @@ void MainWindow::on_upPushButton_clicked()
 void MainWindow::on_downPushButton_clicked()
 {
     zoomed = 1;
-    if ( offset.second < 1200 - 48 - 10 )
+    if ( offset.second < 1200 - 76 - 10 )
     {
         offset.second += 10;
         char data[ 3 ] { 'y', 0, 0 };
@@ -133,7 +132,7 @@ void MainWindow::on_leftPushButton_clicked()
 void MainWindow::on_rightPushButton_clicked()
 {
     zoomed = 1;
-    if ( offset.first < 1600 - 100 - 10 )
+    if ( offset.first < 1600 - 120 - 10 )
     {
         offset.first += 10;
         char data[ 3 ] { 'x', 0, 0 };
