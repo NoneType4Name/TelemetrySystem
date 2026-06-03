@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include "TestImage.h"
+// #include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -81,7 +81,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-// uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -93,8 +93,7 @@ bool sdCardPresented { 0 };
 bool sdCardMounted { 0 };
 bool newFrame { 0 };
 bool usbConnected { 0 };
-bool debugCameraPattern { 0 };
-bool newOffsetProcessed { 1 };
+uint8_t debugCameraPattern { 0 };
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
@@ -144,30 +143,7 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    if ( !newOffsetProcessed )
-    {
-        ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
-        ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
-        newOffsetProcessed = 1;
-    }
-    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
-        return;
-    frameLen          = WIDTH * HEIGHT * 2 + 12;
-    curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
-    auto p { curentFrameBuffer };
-    p[ 0 ]                                       = 'b';
-    p[ 1 ]                                       = 'g';
-    p[ 2 ]                                       = 'n';
-    p[ 3 ]                                       = 'n';
-    ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetWithZoom[ 0 ];
-    ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
-
-    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
-    p[ 0 ] = 'e';
-    p[ 1 ] = 'n';
-    p[ 2 ] = 'd';
-    p[ 3 ] = 'd';
-    CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
+    newFrame = true;
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
@@ -222,6 +198,28 @@ void my_printf( const char *fmt, ... )
     HAL_Delay( 50 );
 }
 
+void CDC_TX_FRAME()
+{
+    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
+        return;
+    frameLen          = WIDTH * HEIGHT * 2 + 12;
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
+    auto p { curentFrameBuffer };
+    p[ 0 ]                                       = 'b';
+    p[ 1 ]                                       = 'g';
+    p[ 2 ]                                       = 'n';
+    p[ 3 ]                                       = 'n';
+    ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetWithZoom[ 0 ];
+    ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
+
+    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
+    p[ 0 ] = 'e';
+    p[ 1 ] = 'n';
+    p[ 2 ] = 'd';
+    p[ 3 ] = 'd';
+    CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
+}
+
 bool inline isRed( uint16_t pixel ) // todo: wrong
 {
     uint8_t r = RGB565_R( pixel );
@@ -238,7 +236,7 @@ bool inline isLight( uint16_t pixel )
     uint8_t b = RGB565_B( pixel );
     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
     uint8_t avg = ( r + b + g ) / 3;
-    return avg > 20; // (r+g+b) / 3 > 20 (rgb565)
+    return avg > 10; // (r+g+b) / 3 > 20 (rgb565)
 }
 
 bool inline isLightBlue( uint16_t pixel )
@@ -360,7 +358,7 @@ bool inline dayTestForBus()
 
 uint16_t fillLightRect( uint16_t leftUpPixelInd )
 {
-    debugCameraPattern                  = 1;
+    debugCameraPattern                  = 2;
     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     nightVisited.set( leftUpPixelInd - 4 );
     int8_t x   = GET_X( leftUpPixelInd );
@@ -378,7 +376,7 @@ uint16_t fillLightRect( uint16_t leftUpPixelInd )
 
             if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
             {
-                uint16_t nidx = ny * WIDTH + nx;
+                uint16_t nidx = 4 + ny * WIDTH + nx;
                 if ( !nightVisited.test( nidx - 4 ) && isLight( frameBuffers[ 0 ][ nidx ] ) )
                 {
                     auto possiblePixel = fillLightRect( nidx );
@@ -489,11 +487,11 @@ bool nightTestForBus() // by lights pattern
     return hasYellowLightsPattern;
 }
 
+uint8_t avg;
 uint8_t inline testForBus()
 {
-    uint8_t avg;
     ov2640_get_luminance_average( &gs_handle, &avg );
-    if ( avg > 1 )
+    if ( avg > 20 )
         return dayTestForBus() ? 1 : 0;
     return nightTestForBus() ? 2 : 0;
 }
@@ -784,7 +782,7 @@ int main( void )
                 //     ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
                 // }
                 offsetWithZoom[ 0 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
-                newOffsetProcessed  = 0;
+                ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
             }
             else if ( UserRxBufferFS[ 0 ] == 'y' ) // y offset
             {
@@ -794,7 +792,7 @@ int main( void )
                 //     ov2640_set_vertical_size( &gs_handle, HEIGHT / 4 );
                 // }
                 offsetWithZoom[ 1 ] = ( ( offsetWithZoom[ 1 ] & ~0xFFF ) | ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) & 0xFFF ) );
-                newOffsetProcessed  = 0;
+                ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
             }
             // else if ( UserRxBufferFS[ 0 ] == 'f' ) // full frame
             // {
@@ -822,53 +820,56 @@ int main( void )
             }
             CDC_RxStatus = 0;
         }
-        if ( CameraCountDownEnded && getToggle() && sdCardPresented )
+        if ( newFrame )
         {
-            if ( newFrame )
+            if ( CameraCountDownEnded && getToggle() && sdCardPresented )
             {
-                uint8_t b { testForBus() };
-                if ( b )
                 {
-                    char name[ 18 ];
-                    uint32_t photoNum { IncrementLastPhotoNumber() };
-                    if ( photoNum )
+                    uint8_t b { testForBus() };
+                    if ( b )
                     {
-                        sprintf( name, "/data/img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
-                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
-                        enableLed2ms();
+                        char name[ 18 ];
+                        uint32_t photoNum { IncrementLastPhotoNumber() };
+                        if ( photoNum )
+                        {
+                            sprintf( name, "/data/img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
+                            SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                            enableLed2ms();
+                        }
+                        CameraCountDownEnded = false;
+                        StartCountdown();
                     }
-                    CameraCountDownEnded = false;
-                    StartCountdown();
+                    else if ( debugCameraPattern )
+                    {
+                        char name[ 18 ];
+                        uint32_t photoNum { IncrementLastPhotoNumber() };
+                        if ( photoNum )
+                        {
+                            sprintf( name, "/debug/d%d-%c|%d.bmp", photoNum, debugCameraPattern - 1 ? 'n' : 'd', avg );
+                            SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                            enableLed2ms();
+                        }
+                        debugCameraPattern = 0;
+                    }
                 }
-                else if ( debugCameraPattern )
+            }
+            newFrame = false;
+            CDC_TX_FRAME();
+        }
+        if ( sdCardPresented && !sdCardMounted )
+        {
+            HAL_SD_DeInit( &hsd1 );
+            if ( HAL_SD_Init( &hsd1 ) == HAL_OK )
+            {
+                MX_FATFS_Init();
+                if ( f_mount( &FatFs, SDPath, 1 ) != FR_OK )
                 {
-                    char name[ 18 ];
-                    uint32_t photoNum { IncrementLastPhotoNumber() };
-                    if ( photoNum )
-                    {
-                        sprintf( name, "/debug/dimg%d.bmp", photoNum );
-                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
-                        enableLed2ms();
-                    }
-                    debugCameraPattern = 0;
+                    HAL_SD_DeInit( &hsd1 );
                 }
-                newFrame = false;
+                else
+                    sdCardMounted = 1;
             }
         }
-        // if ( sdCardPresented && !sdCardMounted )
-        // {
-        //     HAL_SD_DeInit( &hsd1 );
-        //     if ( HAL_SD_Init( &hsd1 ) == HAL_OK )
-        //     {
-        //         MX_FATFS_Init();
-        //         if ( f_mount( &FatFs, SDPath, 1 ) != FR_OK )
-        //         {
-        //             HAL_SD_DeInit( &hsd1 );
-        //         }
-        //         else
-        //             sdCardMounted = 1;
-        //     }
-        // }
 
         /* USER CODE END WHILE */
 
