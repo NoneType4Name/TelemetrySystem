@@ -358,8 +358,8 @@ bool inline dayTestForBus()
 
 uint16_t fillLightRect( uint16_t leftUpPixelInd )
 {
-    debugCameraPattern                  = 2;
-    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+    debugCameraPattern = 2;
+    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
     nightVisited.set( leftUpPixelInd - 4 );
     int8_t x   = GET_X( leftUpPixelInd );
     int8_t y   = GET_Y( leftUpPixelInd );
