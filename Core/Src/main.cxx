@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-// #include "TestImage.h"
+#include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -81,7 +81,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+// uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -144,8 +144,6 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
-    newFrame = true;
-
     if ( !newOffsetProcessed )
     {
         ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
@@ -362,13 +360,13 @@ bool inline dayTestForBus()
 
 uint16_t fillLightRect( uint16_t leftUpPixelInd )
 {
-    debugCameraPattern = 1;
-    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
-    nightVisited[ leftUpPixelInd - 2 ] = true;
-    int8_t x                           = GET_X( leftUpPixelInd );
-    int8_t y                           = GET_Y( leftUpPixelInd );
-    uint8_t mx                         = x;
-    uint8_t my                         = y;
+    debugCameraPattern                  = 1;
+    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+    nightVisited.set( leftUpPixelInd - 4 );
+    int8_t x   = GET_X( leftUpPixelInd );
+    int8_t y   = GET_Y( leftUpPixelInd );
+    uint8_t mx = x;
+    uint8_t my = y;
     for ( int8_t dy = -1; dy <= 1; dy++ )
     {
         for ( int8_t dx { -1 }; dx <= 1; dx++ )
@@ -381,7 +379,7 @@ uint16_t fillLightRect( uint16_t leftUpPixelInd )
             if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
             {
                 uint16_t nidx = ny * WIDTH + nx;
-                if ( isLight( frameBuffers[ 0 ][ nidx ] ) )
+                if ( !nightVisited.test( nidx - 4 ) && isLight( frameBuffers[ 0 ][ nidx ] ) )
                 {
                     auto possiblePixel = fillLightRect( nidx );
                     uint8_t px         = GET_X( possiblePixel );
@@ -413,10 +411,10 @@ bool nightTestForBus() // by lights pattern
                 // hasRedLightsPattern &&
                 hasYellowLightsPattern )
                 return true;
-            auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
-            if ( !nightVisited[ w + h * WIDTH ] && isLight( pixel ) )
+            auto &pixel { frameBuffers[ 0 ][ 4 + w + h * WIDTH ] };
+            if ( !nightVisited.test( w + h * WIDTH ) && isLight( pixel ) )
             {
-                uint16_t leftP  = 2 + w + h * WIDTH;
+                uint16_t leftP  = 4 + w + h * WIDTH;
                 auto rightP     = fillLightRect( leftP );
                 uint8_t dw      = GET_X( rightP ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP ) - GET_Y( leftP );
@@ -426,9 +424,20 @@ bool nightTestForBus() // by lights pattern
                     if ( dh > 2 && dh < 20 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( d > 7 )
+                        if ( d > 2 )
                         {
                             hasYellowLightsPattern = true;
+                            for ( size_t x = GET_X( leftP ); x <= GET_X( rightP ); ++x )
+                            {
+                                frameBuffers[ 0 ][ GET_Y( leftP ) * WIDTH + x ]  = 0xf800;
+                                frameBuffers[ 0 ][ GET_Y( rightP ) * WIDTH + x ] = 0xf800;
+                            }
+
+                            for ( size_t y = GET_Y( leftP ) + 1; y < GET_Y( rightP ); ++y )
+                            {
+                                frameBuffers[ 0 ][ y * WIDTH + GET_X( leftP ) ]  = 0xf800;
+                                frameBuffers[ 0 ][ y * WIDTH + GET_X( rightP ) ] = 0xf800;
+                            }
                         }
                     }
                 }
@@ -846,20 +855,20 @@ int main( void )
                 newFrame = false;
             }
         }
-        if ( sdCardPresented && !sdCardMounted )
-        {
-            HAL_SD_DeInit( &hsd1 );
-            if ( HAL_SD_Init( &hsd1 ) == HAL_OK )
-            {
-                MX_FATFS_Init();
-                if ( f_mount( &FatFs, SDPath, 1 ) != FR_OK )
-                {
-                    HAL_SD_DeInit( &hsd1 );
-                }
-                else
-                    sdCardMounted = 1;
-            }
-        }
+        // if ( sdCardPresented && !sdCardMounted )
+        // {
+        //     HAL_SD_DeInit( &hsd1 );
+        //     if ( HAL_SD_Init( &hsd1 ) == HAL_OK )
+        //     {
+        //         MX_FATFS_Init();
+        //         if ( f_mount( &FatFs, SDPath, 1 ) != FR_OK )
+        //         {
+        //             HAL_SD_DeInit( &hsd1 );
+        //         }
+        //         else
+        //             sdCardMounted = 1;
+        //     }
+        // }
 
         /* USER CODE END WHILE */
 
