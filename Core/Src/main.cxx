@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "driver_ov2640.h"
+#include <bitset>
 #include <cstdlib>
 #include <stdint.h>
 #include "ov2640_basic.h"
@@ -98,6 +99,7 @@ uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
+std::bitset<WIDTH * HEIGHT> nightVisited { 0 };
 
 /* USER CODE END PV */
 
@@ -231,12 +233,14 @@ bool inline isRed( uint16_t pixel ) // todo: wrong
     return ( r > ( 80 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 40 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 40 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
 }
 
-bool inline isYellow( uint16_t pixel )
+bool inline isLight( uint16_t pixel )
 {
     uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel );
+    uint8_t g = RGB565_G( pixel ) >> 1;
     uint8_t b = RGB565_B( pixel );
-    return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
+    // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
+    uint8_t avg = ( r + b + g ) / 3;
+    return avg > 20; // (r+g+b) / 3 > 20 (rgb565)
 }
 
 bool inline isLightBlue( uint16_t pixel )
@@ -328,71 +332,78 @@ bool inline dayTestForBus()
     return false;
 }
 
-uint16_t fillRedSquare( uint16_t leftUpPixelInd )
+// uint16_t fillRedSquare( uint16_t leftUpPixelInd )
+// {
+//     frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+//     int16_t x                           = GET_X( leftUpPixelInd );
+//     int16_t y                           = GET_Y( leftUpPixelInd );
+//     uint16_t r { 1 };
+//     for ( int8_t dy = -1; dy <= 1; dy++ )
+//     {
+//         for ( int8_t dx { -1 }; dx <= 1; dx++ )
+//         {
+//             if ( dx == 0 && dy == 0 ) continue;
+
+//             uint16_t nx = x + dx;
+//             uint16_t ny = y + dy;
+
+//             if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
+//             {
+//                 uint16_t nidx = ny * WIDTH + nx;
+//                 if ( isRed( frameBuffers[ 0 ][ nidx ] ) )
+//                 {
+//                     r += fillRedSquare( nidx );
+//                 }
+//             }
+//         }
+//     }
+//     return r;
+// }
+
+uint16_t fillLightRect( uint16_t leftUpPixelInd )
 {
-    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
-    int16_t x                           = GET_X( leftUpPixelInd );
-    int16_t y                           = GET_Y( leftUpPixelInd );
-    uint16_t r { 1 };
+    debugCameraPattern = 1;
+    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
+    nightVisited[ leftUpPixelInd - 2 ] = true;
+    int8_t x                           = GET_X( leftUpPixelInd );
+    int8_t y                           = GET_Y( leftUpPixelInd );
+    uint8_t mx                         = x;
+    uint8_t my                         = y;
     for ( int8_t dy = -1; dy <= 1; dy++ )
     {
         for ( int8_t dx { -1 }; dx <= 1; dx++ )
         {
             if ( dx == 0 && dy == 0 ) continue;
 
-            uint16_t nx = x + dx;
-            uint16_t ny = y + dy;
+            int16_t nx = x + dx;
+            int16_t ny = y + dy;
 
             if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
             {
                 uint16_t nidx = ny * WIDTH + nx;
-                if ( isRed( frameBuffers[ 0 ][ nidx ] ) )
+                if ( isLight( frameBuffers[ 0 ][ nidx ] ) )
                 {
-                    r += fillRedSquare( nidx );
+                    auto possiblePixel = fillLightRect( nidx );
+                    uint8_t px         = GET_X( possiblePixel );
+                    uint8_t py         = GET_Y( possiblePixel );
+                    if ( px > mx ) mx = px;
+                    if ( py > my ) my = py;
                 }
             }
         }
     }
-    return r;
-}
-
-uint16_t fillYellowSquare( uint16_t leftUpPixelInd )
-{
-    debugCameraPattern                  = 1;
-    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x001f;
-    int16_t x                           = GET_X( leftUpPixelInd );
-    int16_t y                           = GET_Y( leftUpPixelInd );
-    uint16_t r { 1 };
-    for ( int8_t dy = -1; dy <= 1; dy++ )
-    {
-        for ( int8_t dx { -1 }; dx <= 1; dx++ )
-        {
-            if ( dx == 0 && dy == 0 ) continue;
-
-            uint16_t nx = x + dx;
-            uint16_t ny = y + dy;
-
-            if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
-            {
-                uint16_t nidx = ny * WIDTH + nx;
-                if ( isYellow( frameBuffers[ 0 ][ nidx ] ) )
-                {
-                    r += fillYellowSquare( nidx );
-                }
-            }
-        }
-    }
-    return r;
+    return mx + my * WIDTH;
 }
 
 bool nightTestForBus() // by lights pattern
 {
-    uint8_t cr { 0 }, cy { 0 };
+    uint8_t cr { 0 };
     uint8_t dwu { 0 };
     uint8_t dwd { 0 };
     uint8_t dhl { 0 };
     uint8_t dhr { 0 };
     uint8_t yhu { 0 };
+    nightVisited.reset();
     bool hasRedLightsPattern { 0 }, hasYellowLightsPattern { 0 };
     for ( uint16_t h { 0 }; h < HEIGHT; ++h )
     {
@@ -403,77 +414,77 @@ bool nightTestForBus() // by lights pattern
                 hasYellowLightsPattern )
                 return true;
             auto &pixel { frameBuffers[ 0 ][ 2 + w + h * WIDTH ] };
-            if ( isYellow( pixel ) )
+            if ( !nightVisited[ w + h * WIDTH ] && isLight( pixel ) )
             {
-                auto sy = fillYellowSquare( 2 + w + h * WIDTH );
-                ++cy;
-                switch ( cy )
+                uint16_t leftP  = 2 + w + h * WIDTH;
+                auto rightP     = fillLightRect( leftP );
+                uint8_t dw      = GET_X( rightP ) - GET_X( leftP );
+                uint8_t dh      = GET_Y( rightP ) - GET_Y( leftP );
+                uint16_t square = dw * dh;
+                if ( square > 40 )
                 {
-                    case 1:
-                        if ( sy > 2 )
-                            yhu = h;
-                        break;
-                    case 2:
+                    if ( dh > 2 && dh < 20 )
                     {
-                        uint16_t dh = h - yhu;
-                        if ( dh < 5 )
+                        float d = ( ( float ) ( dw ) / dh );
+                        if ( d > 7 )
+                        {
                             hasYellowLightsPattern = true;
-                        break;
+                        }
                     }
                 }
             }
-            // else if ( isRed( pixel ) )
-            // {
-            //     auto sr = fillRedSquare( 2 + w + h * WIDTH );
-            //     if ( sr > 5 )
-            //     {
-            //         ++cr;
-            //         switch ( cr )
-            //         {
-            //             case 1:
-            //             {
-            //                 dwu = w;
-            //                 dhl = h;
-            //                 break;
-            //             }
-            //             case 2:
-            //             {
-            //                 uint16_t tw = w - dwu;
-            //                 dhr         = h;
-            //                 if ( tw > 10 )
-            //                     return false;
-            //                 break;
-            //             }
-            //             case 3:
-            //             {
-            //                 dwd         = w;
-            //                 uint16_t th = h - dhl;
-            //                 if ( th > 7 )
-            //                     return false;
-            //                 break;
-            //             }
-            //             case 4:
-            //             {
-            //                 uint16_t tw = w - dwd;
-            //                 uint16_t th = h - dhr;
-            //                 if ( ( tw > 10 ) || ( th > 10 ) )
-            //                     return false;
-            //                 hasRedLightsPattern = 1;
-            //                 break;
-            //             }
-            //         }
-            //     }
-            // }
         }
+        // else if ( isRed( pixel ) )
+        // {
+        //     auto sr = fillRedSquare( 2 + w + h * WIDTH );
+        //     if ( sr > 5 )
+        //     {
+        //         ++cr;
+        //         switch ( cr )
+        //         {
+        //             case 1:
+        //             {
+        //                 dwu = w;
+        //                 dhl = h;
+        //                 break;
+        //             }
+        //             case 2:
+        //             {
+        //                 uint16_t tw = w - dwu;
+        //                 dhr         = h;
+        //                 if ( tw > 10 )
+        //                     return false;
+        //                 break;
+        //             }
+        //             case 3:
+        //             {
+        //                 dwd         = w;
+        //                 uint16_t th = h - dhl;
+        //                 if ( th > 7 )
+        //                     return false;
+        //                 break;
+        //             }
+        //             case 4:
+        //             {
+        //                 uint16_t tw = w - dwd;
+        //                 uint16_t th = h - dhr;
+        //                 if ( ( tw > 10 ) || ( th > 10 ) )
+        //                     return false;
+        //                 hasRedLightsPattern = 1;
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // }
     }
-    return hasRedLightsPattern && hasYellowLightsPattern;
+    return hasYellowLightsPattern;
 }
 
 uint8_t inline testForBus()
 {
     uint8_t avg;
     ov2640_get_luminance_average( &gs_handle, &avg );
-    if ( avg > 40 )
+    if ( avg > 1 )
         return dayTestForBus() ? 1 : 0;
     return nightTestForBus() ? 2 : 0;
 }
