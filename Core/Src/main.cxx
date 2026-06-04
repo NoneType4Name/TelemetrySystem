@@ -228,13 +228,21 @@ void CDC_TX_FRAME()
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
-bool inline isRed( uint16_t pixel ) // todo: wrong
+// bool inline isRed( uint16_t pixel ) // todo: wrong
+// {
+//     uint8_t r = RGB565_R( pixel );
+//     uint8_t g = RGB565_G( pixel );
+//     uint8_t b = RGB565_B( pixel );
+
+//     return true && ( r > ( 80 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 40 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 40 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
+// }
+
+bool inline isYellow( uint16_t pixel )
 {
     uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel );
+    uint8_t g = RGB565_G( pixel ) >> 1;
     uint8_t b = RGB565_B( pixel );
-
-    return true && ( r > ( 80 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 40 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 40 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
+    return ( abs( r - g ) < 6 && b < g && g - b > 3 );
 }
 
 bool inline isLight( uint16_t pixel )
@@ -244,7 +252,7 @@ bool inline isLight( uint16_t pixel )
     uint8_t b = RGB565_B( pixel );
     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
     uint8_t avg = ( r + b + g ) / 3;
-    return avg > 10; // (r+g+b) / 3 > 20 (rgb565)
+    return avg > 6 && pixel != 0xf800; // (r+g+b) / 3 > 20 (rgb565)
 }
 
 bool isLightBlue( uint16_t pixel )
@@ -252,7 +260,7 @@ bool isLightBlue( uint16_t pixel )
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
-    return true && ( b > ( 160 * 31 / 255 ) ) && ( b > ( g >> 1 ) ) && ( ( int ) b - ( g >> 1 ) < ( 58 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > ( 17 * 31 / 255 ) ) && ( ( g >> 1 ) > r ) && ( ( int ) ( g >> 1 ) - r > ( 17 * 31 / 255 ) ) && ( ( int ) ( g >> 1 ) - r < ( 60 * 31 / 255 ) ); // b > g >> r (255, 255-58>17, 255-20-60>17)
+    return true && ( b > ( 80 * 31 / 255 ) ) && ( b > ( g >> 1 ) ) && ( ( int ) b - ( g >> 1 ) < ( 58 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > 0 ) && ( ( g >> 1 ) > r ) && ( ( int ) ( g >> 1 ) - r > 0 ) && ( ( int ) ( g >> 1 ) - r < ( 66 * 31 / 255 ) ); // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
 }
 
 bool inline isGrey( uint16_t pixel )
@@ -263,44 +271,16 @@ bool inline isGrey( uint16_t pixel )
     return true && ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
-// size_t inline findLeftDownBlue()
-// {
-//     for ( size_t h { HEIGHT - 1 }; h > 0; --h )
-//         for ( size_t w { 0 }; w < WIDTH; ++w )
-//         {
-//             if ( isLightBlue( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
-//             {
-//                 return 2 + w + h * WIDTH;
-//             }
-//         }
-
-//     return 0;
-// }
-
-// size_t inline findRightUpBlue()
-// {
-//     for ( size_t h { 0 }; h < HEIGHT; ++h )
-//         for ( size_t w { WIDTH - 1 }; w > 0; --w )
-//         {
-//             if ( isLightBlue( frameBuffers[ 0 ][ 2 + w + h * WIDTH ] ) )
-//             {
-//                 return 2 + w + h * WIDTH;
-//             }
-//         }
-
-//     return 0;
-// }
-
 std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool nightMode )
 {
     std::vector<uint16_t> stack { leftUpPixelInd };
-    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
+    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
 
     uint16_t filled { 1 };
     uint8_t maxX = GET_X( leftUpPixelInd );
     uint8_t maxY = GET_Y( leftUpPixelInd );
-    uint8_t minX = ~0;
-    uint8_t minY = ~0;
+    uint8_t minX = maxX;
+    uint8_t minY = maxY;
 
     pixelVisited.set( leftUpPixelInd - 4 );
 
@@ -309,32 +289,34 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
         uint16_t idx = stack.back();
         stack.pop_back();
 
-        int8_t x = GET_X( idx );
-        int8_t y = GET_Y( idx );
+        int16_t x = GET_X( idx );
+        int16_t y = GET_Y( idx );
 
-        for ( int8_t dy = -1; dy <= 1; dy++ )
+        for ( int8_t dy = -2; dy <= 2; dy++ )
         {
-            for ( int8_t dx = -1; dx <= 1; dx++ )
+            for ( int8_t dx = -2; dx <= 2; dx++ )
             {
                 if ( dx == 0 && dy == 0 ) continue;
 
                 int16_t nx = x + dx;
                 int16_t ny = y + dy;
+                if ( nx < 4 || ny < 0 ) continue;
 
                 if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
                 {
-                    uint16_t nidx = 4 + ny * WIDTH + nx;
-                    if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? isLight( frameBuffers[ 0 ][ nidx ] ) : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
+                    uint16_t nidx = ny * WIDTH + nx;
+                    if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( isYellow( frameBuffers[ 0 ][ nidx ] ) || isLight( frameBuffers[ 0 ][ nidx ] ) ) : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
                     {
                         pixelVisited.set( nidx - 4 );
-                        frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
+                        // frameBuffers[ 0 ][ nidx ] = 0x07e0;
                         ++filled;
                         uint8_t px = GET_X( nidx );
                         uint8_t py = GET_Y( nidx );
                         if ( px > maxX ) maxX = px;
                         if ( py > maxY ) maxY = py;
                         if ( px < minX ) minX = px;
-                        if ( py < minY ) minY = py;
+                        if ( py < minY )
+                            minY = py;
                         stack.emplace_back( nidx );
                     }
                 }
@@ -347,84 +329,60 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
 
 bool inline dayTestForBus()
 {
-    // size_t l, r { 0 };
-    // if ( ( l = findLeftDownBlue() ) )
-    // {
-    //     debugCameraPattern = 1;
-    //     r                  = findRightUpBlue();
-    //     if ( !r )
-    //         return false;
-    // }
-
-    // uint16_t x1 = GET_X( l );
-    // uint16_t y1 = GET_Y( r );
-    // uint16_t x2 = GET_X( r );
-    // uint16_t y2 = GET_Y( l );
-    // uint16_t b { 0 }, g { 0 };
-    // float deltaRatio { ( ( x2 - x1 ) / float( y2 - y1 ) - 2.25f ) };
-    // if ( deltaRatio > 0 && deltaRatio <= 5e1f ) // ratio W/H - 9/4 < 0.5 (W/H in [2.25, 2.75]
-    // {
-    //     for ( uint16_t y { y1 }; y < y2; ++y )
-    //     {
-    //         for ( uint16_t x { x1 }; x < x2; ++x )
-    //         {
-    //             uint16_t pixel { frameBuffers[ 0 ][ x + y * WIDTH ] };
-    //             if ( isLightBlue( pixel ) )
-    //             {
-    //                 ++b;
-    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0x07e0;
-    //             }
-
-    //             if ( isGrey( pixel ) )
-    //             {
-    //                 ++g;
-    //                 // frameBuffers[ 0 ][ x + y * WIDTH ] = 0xb800;
-    //             }
-    //         }
-    //     }
-    //     float pxCount { static_cast<float>( ( x2 - x1 ) * ( y2 - y1 ) ) };
-    //     if ( b / pxCount < 0.55f && g / pxCount < 0.4f )
-    //         return true;
-    // }
-    // return false;
     pixelVisited.reset();
     uint8_t countLightBluePattern { 0 };
     for ( uint16_t h { 0 }; h < HEIGHT; ++h )
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
-            if ( true && ( !pixelVisited.test( w + h * WIDTH ) ) && isLightBlue( frameBuffers[ 0 ][ 4 + w + h * WIDTH ] ) )
+        {
+            uint16_t leftP = 4 + w + h * WIDTH;
+            if ( true && !pixelVisited.test( w + h * WIDTH ) && isLightBlue( frameBuffers[ 0 ][ leftP ] ) )
             {
-                frameBuffers[ 0 ][ 4 + w + h * WIDTH ] = 0x07e0;
-                continue;
-                uint16_t leftP  = 4 + w + h * WIDTH;
                 auto rightP     = fillColorPattern( leftP, 0 );
                 leftP           = rightP[ 0 ];
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                if ( square > 100 )
+                if ( square > 2000 )
                 {
-                    if ( dh > 2 && dh < 20 )
+                    if ( dh > 20 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        // if ( d > 2.f && d < 2.8f )
+                        if ( ( square > 4000 && ( d > 2.f && d < 2.8f ) ) || ( d > 3.f && d < 3.8f ) ) // square > 4000 -> ratio ~ 2.5f | 2000 < square < 4000 -> ratio ~ 3.5f - #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
                                 debugCameraPattern = 1;
-                            for ( size_t x = GET_X( leftP ); x <= GET_X( rightP[ 1 ] ); ++x )
+                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                             {
-                                frameBuffers[ 0 ][ GET_Y( leftP ) * WIDTH + x ]       = 0xf800;
-                                frameBuffers[ 0 ][ GET_Y( rightP[ 1 ] ) * WIDTH + x ] = 0xf800;
+                                if ( GET_Y( leftP ) > 0 )
+                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
+                                if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
+                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
                             }
 
-                            for ( size_t y = GET_Y( leftP ) + 1; y < GET_Y( rightP[ 1 ] ); ++y )
+                            for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                             {
-                                frameBuffers[ 0 ][ y * WIDTH + GET_X( leftP ) ]       = 0xf800;
-                                frameBuffers[ 0 ][ y * WIDTH + GET_X( rightP[ 1 ] ) ] = 0xf800;
+                                if ( GET_X( leftP ) > 0 )
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
+                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
                             }
                         }
                     }
                 }
+                else if ( square > 2000 )
+                {
+                    if ( dh > 20 )
+                    {
+                        float d = ( ( float ) ( dw ) / dh );
+                        if ( d > 3.f && d < 3.5f )
+                        {
+                            if ( ++countLightBluePattern > 1 )
+                                debugCameraPattern = 1;
+                        }
+                    }
+                }
             }
+        }
     return countLightBluePattern > 0;
 }
 
@@ -436,32 +394,39 @@ bool nightTestForBus() // by lights pattern
     {
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
-            if ( !pixelVisited.test( w + h * WIDTH ) && isLight( frameBuffers[ 0 ][ 4 + w + h * WIDTH ] ) )
+            uint16_t leftP = 4 + w + h * WIDTH;
+            if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( frameBuffers[ 0 ][ leftP ] ) || isLight( frameBuffers[ 0 ][ leftP ] ) ) )
             {
-                uint16_t leftP  = 4 + w + h * WIDTH;
+                auto s          = ( isYellow( frameBuffers[ 0 ][ leftP ] ) || isLight( frameBuffers[ 0 ][ leftP ] ) );
+                auto ss         = frameBuffers[ 0 ][ leftP ];
                 auto rightP     = fillColorPattern( leftP, 1 );
+                leftP           = rightP[ 0 ];
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                if ( square > 40 )
+                // if ( square > 40 )
                 {
-                    if ( dh > 2 && dh < 20 )
+                    // if ( dh > 2 && dh < 20 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( d > 3 )
+                        // if ( d > 3 )
                         {
                             if ( ++countLightsPattern > 1 )
                                 debugCameraPattern = 2;
-                            for ( size_t x = GET_X( leftP ); x <= GET_X( rightP[ 1 ] ); ++x )
+                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                             {
-                                frameBuffers[ 0 ][ GET_Y( leftP ) * WIDTH + x ]       = 0xf800;
-                                frameBuffers[ 0 ][ GET_Y( rightP[ 1 ] ) * WIDTH + x ] = 0xf800;
+                                if ( GET_Y( leftP ) > 0 )
+                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
+                                if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
+                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
                             }
 
-                            for ( size_t y = GET_Y( leftP ) + 1; y < GET_Y( rightP[ 1 ] ); ++y )
+                            for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                             {
-                                frameBuffers[ 0 ][ y * WIDTH + GET_X( leftP ) ]       = 0xf800;
-                                frameBuffers[ 0 ][ y * WIDTH + GET_X( rightP[ 1 ] ) ] = 0xf800;
+                                if ( GET_X( leftP ) > 0 )
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
+                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
                             }
                         }
                     }
@@ -478,7 +443,7 @@ uint8_t inline testForBus()
     ov2640_get_luminance_average( &gs_handle, &avg );
     // if ( avg > 10 )
     return dayTestForBus() ? 1 : 0;
-    return nightTestForBus() ? 2 : 0;
+    // return nightTestForBus() ? 2 : 0;
 }
 
 // bool inline getZoomed()
