@@ -40,7 +40,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <vector>
-#include "TestImage.h"
+// #include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -84,7 +84,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-// uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -367,6 +367,8 @@ bool inline dayTestForBus()
                                     frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
                             }
                         }
+                        else
+                            debugCameraPattern = 1;
                     }
                 }
                 else if ( square > 2000 )
@@ -673,15 +675,14 @@ int main( void )
         sdCardMounted   = f_mount( &FatFs, SDPath, 1 ) == FR_OK;
     }
     // init camera
-    // ov2640_basic_init();
+    ov2640_basic_init();
 
-    // ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
-    // ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
+    ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    // memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
-    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
-    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     // init ESP
     // ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -773,7 +774,7 @@ int main( void )
                     }
                     else if ( debugCameraPattern )
                     {
-                        char name[ 18 ];
+                        char name[ 25 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
