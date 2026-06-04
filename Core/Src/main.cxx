@@ -406,12 +406,13 @@ bool nightTestForBus() // by lights pattern
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                // if ( square > 40 )
+                if ( square > 80 )
                 {
-                    // if ( dh > 2 && dh < 20 )
+                    if ( square > 200 ) debugCameraPattern = 2;
+                    if ( dh > 1 && dh < 9 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        // if ( d > 3 )
+                        if ( d > 5.f )
                         {
                             if ( ++countLightsPattern > 1 )
                                 debugCameraPattern = 2;
@@ -443,9 +444,9 @@ uint8_t avg;
 uint8_t inline testForBus()
 {
     ov2640_get_luminance_average( &gs_handle, &avg );
-    // if ( avg > 10 )
-    return dayTestForBus() ? 1 : 0;
-    // return nightTestForBus() ? 2 : 0;
+    if ( avg > 10 )
+        return dayTestForBus() ? 1 : 0;
+    return nightTestForBus() ? 2 : 0;
 }
 
 // bool inline getZoomed()
@@ -772,13 +773,13 @@ int main( void )
                         CameraCountDownEnded = false;
                         StartCountdown();
                     }
-                    else if ( debugCameraPattern )
+                    if ( debugCameraPattern )
                     {
-                        char name[ 25 ];
+                        char name[ 20 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "/debug/d%d-%c|%d.bmp", photoNum, debugCameraPattern - 1 ? 'n' : 'd', avg );
+                            sprintf( name, "/debug/d%d-%c-%d.bmp", photoNum, debugCameraPattern - 1 ? 'n' : 'd', avg );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                             enableLed2ms();
                         }
