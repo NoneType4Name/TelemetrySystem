@@ -150,8 +150,8 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     newFrame = true;
     if ( newConfigProcessed )
         return;
-    // ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
-    // ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
+    ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
+    ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
