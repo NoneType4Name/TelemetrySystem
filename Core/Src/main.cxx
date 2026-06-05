@@ -448,7 +448,7 @@ bool nightTestForBus() // by lights pattern
 
 uint8_t inline testForBus()
 {
-    if ( avg > 10 )
+    if ( avg > 25 )
         return dayTestForBus() ? 1 : 0;
     return nightTestForBus() ? 2 : 0;
 }
