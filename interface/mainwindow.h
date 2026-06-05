@@ -43,9 +43,13 @@ class MainWindow : public QMainWindow
 
     void on_cameraCheckBox_clicked();
 
+    void on_aecLineEdit_editingFinished();
+
   private:
-    void updateOffsetLineEdits();
+    void updateProperties();
     QPair<uint16_t, uint16_t> offset { 0, 0 };
+    uint16_t aec { 0 };
+    uint8_t luminance { 0 };
     bool zoomed { 0 };
     QByteArray bytes {};
     QTimer *timer {};

@@ -4,7 +4,7 @@
 #include "stdbool.h"
 #include "stm32h7xx_hal.h"
 
-#define ESP_RX_buff_size 1024
+#define ESP_RX_buff_size 2048
 #define ESP_TX_buff_size 256
 
 #define ESP_DEBUG

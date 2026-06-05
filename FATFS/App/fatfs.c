@@ -37,16 +37,6 @@ void MX_FATFS_Init( void )
     /* USER CODE END Init */
 }
 
-void MX_FATFS_DeInit( void )
-{
-    /*## FatFS: Link the SD driver ###########################*/
-    retSD = FATFS_UnLinkDriver( SDPath );
-
-    /* USER CODE BEGIN Init */
-    /* additional user code for init */
-    /* USER CODE END Init */
-}
-
 /**
  * @brief  Gets Time from RTC
  * @param  None
@@ -60,5 +50,15 @@ DWORD get_fattime( void )
 }
 
 /* USER CODE BEGIN Application */
+
+void MX_FATFS_DeInit( void )
+{
+    /*## FatFS: Link the SD driver ###########################*/
+    retSD = FATFS_UnLinkDriver( SDPath );
+
+    /* USER CODE BEGIN Init */
+    /* additional user code for init */
+    /* USER CODE END Init */
+}
 
 /* USER CODE END Application */

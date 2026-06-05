@@ -20,9 +20,6 @@
 #include "main.h"
 #include "cmsis_gcc.h"
 #include "fatfs.h"
-#include "ff.h"
-#include "ff_gen_drv.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -76,6 +73,8 @@ DMA_HandleTypeDef hdma_dcmi;
 
 I2C_HandleTypeDef hi2c1;
 
+RTC_HandleTypeDef hrtc;
+
 SD_HandleTypeDef hsd1;
 
 TIM_HandleTypeDef htim3;
@@ -84,7 +83,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -98,6 +97,8 @@ bool newFrame { 0 };
 bool usbConnected { 0 };
 bool newConfigProcessed { 1 };
 uint8_t debugCameraPattern { 0 };
+uint8_t avg;
+uint16_t aec;
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
 FATFS FatFs;
 FIL FatFsFile;
@@ -115,21 +116,13 @@ static void MX_I2C1_Init( void );
 static void MX_USART3_UART_Init( void );
 static void MX_TIM3_Init( void );
 static void MX_TIM7_Init( void );
+static void MX_RTC_Init( void );
 /* USER CODE BEGIN PFP */
 
-// void HAL_PCD_ConnectCallback( PCD_HandleTypeDef *hpcd )
-// {
-//     usbConnected      = 1;
-//     curentFrameBuffer = 0;
-//     frameLen          = 0;
-// }
-
-// void HAL_PCD_DisconnectCallback( PCD_HandleTypeDef *hpcd )
-// {
-//     usbConnected      = 0;
-//     curentFrameBuffer = 0;
-//     frameLen          = 0;
-// }
+void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
+{
+    // every day at 00:00
+}
 
 void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 {
@@ -152,6 +145,16 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
         return;
     ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
     ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
+    if ( aec == 0 )
+    {
+        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
+    }
+    else
+    {
+        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
+        ov2640_set_aec( &gs_handle, aec );
+    }
+    newConfigProcessed = true;
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
 
@@ -208,9 +211,9 @@ void my_printf( const char *fmt, ... )
 
 void CDC_TX_FRAME()
 {
-    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
+    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED || frameLen )
         return;
-    frameLen          = WIDTH * HEIGHT * 2 + 12;
+    frameLen          = WIDTH * HEIGHT * 2 + 14;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
     auto p { curentFrameBuffer };
     p[ 0 ]                                       = 'b';
@@ -220,11 +223,14 @@ void CDC_TX_FRAME()
     ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetWithZoom[ 0 ];
     ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
 
-    p      = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
-    p[ 0 ] = 'e';
-    p[ 1 ] = 'n';
-    p[ 2 ] = 'd';
-    p[ 3 ] = 'd';
+    p = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
+    ov2640_get_luminance_average( &gs_handle, &avg );
+    ov2640_get_aec( &gs_handle, reinterpret_cast<uint16_t *>( &p[ 0 ] ) );
+    // ( *reinterpret_cast<uint16_t *>( &p[ 0 ] ) ) = aec;
+    p[ 2 ] = avg;
+    p[ 3 ] = 'e';
+    p[ 4 ] = 'n';
+    p[ 5 ] = 'd';
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
@@ -440,10 +446,8 @@ bool nightTestForBus() // by lights pattern
     return countLightsPattern > 0;
 }
 
-uint8_t avg;
 uint8_t inline testForBus()
 {
-    ov2640_get_luminance_average( &gs_handle, &avg );
     if ( avg > 10 )
         return dayTestForBus() ? 1 : 0;
     return nightTestForBus() ? 2 : 0;
@@ -668,6 +672,7 @@ int main( void )
     MX_USART3_UART_Init();
     MX_TIM3_Init();
     MX_TIM7_Init();
+    MX_RTC_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
     if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
@@ -686,39 +691,34 @@ int main( void )
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     // init ESP
-    // ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
-    // ESP8266_OFF();
-    // ESP8266_Send( "AT+CWMODE=1\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     while ( 1 )
-    //         __NOP();
-    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     while ( 1 )
-    //         __NOP();
-    // ESP8266_Send( "AT+CIPMUX=1\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     while ( 1 )
-    //         __NOP();
+    ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
+    ESP8266_ON();
+    ESP8266_Send( "AT+CWMODE=1\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        while ( 1 )
+            __NOP();
+    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        while ( 1 )
+            __NOP();
+    ESP8266_Send( "AT+CIPMUX=1\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        while ( 1 )
+            __NOP();
 
-    // if ( ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
-    // {
-    // }
-    // else
-    // {
-    //     while ( 1 )
-    //         __NOP();
-    // }
+    if ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    {
+        while ( 1 )
+            __NOP();
+    }
 
-    // ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-    //                                                        "Host: moscowtransport.app\r\n"
-    //                                                        "User-Agent: ESP8266\r\n"
-    //                                                        "Accept: application/json\r\n"
-    //                                                        "Connection: close\r\n" );
+    ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                                                           "Host: moscowtransport.app\r\n"
+                                                           "User-Agent: ESP8266\r\n"
+                                                           "Accept: application/json\r\n"
+                                                           "Connection: close\r\n" );
 
     /* USER CODE END 2 */
-    auto b { testForBus() };
-    CDC_TX_FRAME();
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
@@ -736,6 +736,11 @@ int main( void )
             {
                 offsetWithZoom[ 1 ] = ( ( offsetWithZoom[ 1 ] & ~0xFFF ) | ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) & 0xFFF ) );
                 newConfigProcessed  = false;
+            }
+            else if ( UserRxBufferFS[ 0 ] == 'e' ) // y offset
+            {
+                aec                = *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] );
+                newConfigProcessed = false;
             }
             else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
             {
@@ -833,11 +838,17 @@ void SystemClock_Config( void )
     {
     }
 
+    /** Configure LSE Drive Capability
+     */
+    HAL_PWR_EnableBkUpAccess();
+    __HAL_RCC_LSEDRIVE_CONFIG( RCC_LSEDRIVE_LOW );
+
     /** Initializes the RCC Oscillators according to the specified parameters
      * in the RCC_OscInitTypeDef structure.
      */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE;
     RCC_OscInitStruct.HSEState       = RCC_HSE_ON;
+    RCC_OscInitStruct.LSEState       = RCC_LSE_ON;
     RCC_OscInitStruct.HSI48State     = RCC_HSI48_ON;
     RCC_OscInitStruct.PLL.PLLState   = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
@@ -951,6 +962,86 @@ static void MX_I2C1_Init( void )
     /* USER CODE BEGIN I2C1_Init 2 */
 
     /* USER CODE END I2C1_Init 2 */
+}
+
+/**
+ * @brief RTC Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_RTC_Init( void )
+{
+    /* USER CODE BEGIN RTC_Init 0 */
+
+    /* USER CODE END RTC_Init 0 */
+
+    RTC_TimeTypeDef sTime   = { 0 };
+    RTC_DateTypeDef sDate   = { 0 };
+    RTC_AlarmTypeDef sAlarm = { 0 };
+
+    /* USER CODE BEGIN RTC_Init 1 */
+
+    /* USER CODE END RTC_Init 1 */
+
+    /** Initialize RTC Only
+     */
+    hrtc.Instance            = RTC;
+    hrtc.Init.HourFormat     = RTC_HOURFORMAT_24;
+    hrtc.Init.AsynchPrediv   = 127;
+    hrtc.Init.SynchPrediv    = 255;
+    hrtc.Init.OutPut         = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hrtc.Init.OutPutType     = RTC_OUTPUT_TYPE_OPENDRAIN;
+    hrtc.Init.OutPutRemap    = RTC_OUTPUT_REMAP_NONE;
+    if ( HAL_RTC_Init( &hrtc ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+
+    /* USER CODE BEGIN Check_RTC_BKUP */
+
+    /* USER CODE END Check_RTC_BKUP */
+
+    /** Initialize RTC and set the Time and Date
+     */
+    sTime.Hours          = 0;
+    sTime.Minutes        = 0;
+    sTime.Seconds        = 0;
+    sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+    sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+    if ( HAL_RTC_SetTime( &hrtc, &sTime, RTC_FORMAT_BIN ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+    sDate.Month   = RTC_MONTH_JANUARY;
+    sDate.Date    = 1;
+    sDate.Year    = 0;
+    if ( HAL_RTC_SetDate( &hrtc, &sDate, RTC_FORMAT_BIN ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+
+    /** Enable the Alarm A
+     */
+    sAlarm.AlarmTime.Hours          = 0;
+    sAlarm.AlarmTime.Minutes        = 0;
+    sAlarm.AlarmTime.Seconds        = 0;
+    sAlarm.AlarmTime.SubSeconds     = 0;
+    sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+    sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+    sAlarm.AlarmMask                = RTC_ALARMMASK_NONE;
+    sAlarm.AlarmSubSecondMask       = RTC_ALARMSUBSECONDMASK_ALL;
+    sAlarm.AlarmDateWeekDaySel      = RTC_ALARMDATEWEEKDAYSEL_DATE;
+    sAlarm.AlarmDateWeekDay         = 1;
+    sAlarm.Alarm                    = RTC_ALARM_A;
+    if ( HAL_RTC_SetAlarm_IT( &hrtc, &sAlarm, RTC_FORMAT_BIN ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    /* USER CODE BEGIN RTC_Init 2 */
+
+    /* USER CODE END RTC_Init 2 */
 }
 
 /**
@@ -1194,10 +1285,6 @@ static void MX_GPIO_Init( void )
     GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init( SDMMC1_SW_GPIO_Port, &GPIO_InitStruct );
-
-    /* EXTI interrupt init*/
-    HAL_NVIC_SetPriority( SDMMC1_SW_EXTI_IRQn, 0, 0 );
-    HAL_NVIC_EnableIRQ( SDMMC1_SW_EXTI_IRQn );
 
     /* USER CODE BEGIN MX_GPIO_Init_2 */
 

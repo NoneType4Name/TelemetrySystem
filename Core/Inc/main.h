@@ -75,7 +75,6 @@ extern "C"
 #define DCMI_XCLK_GPIO_Port GPIOA
 #define SDMMC1_SW_Pin       GPIO_PIN_4
 #define SDMMC1_SW_GPIO_Port GPIOD
-#define SDMMC1_SW_EXTI_IRQn EXTI4_IRQn
 
     /* USER CODE BEGIN Private defines */
 

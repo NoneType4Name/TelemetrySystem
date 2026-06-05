@@ -50,13 +50,17 @@ void MainWindow::readSerialData()
             auto H { *reinterpret_cast<uint16_t *>( &rD[ 6 ] ) };
             ui->cameraCheckBox->setChecked( H & ( 1 << 14 ) );
             offset.second = H & 0xFFF;
-            updateOffsetLineEdits();
+            updateProperties();
         }
         bytes.append( rD );
-        if ( bytes.indexOf( "endd" ) == -1 )
+        auto endingPos { bytes.indexOf( "end" ) };
+        if ( endingPos == -1 )
             return;
         bytes.remove( 0, 8 );
-        bytes.remove( bytes.size() - 5, 4 );
+        endingPos -= 8;
+        luminance = bytes[ endingPos - 1 ];
+        aec       = *reinterpret_cast<uint16_t *>( &bytes[ endingPos - 3 ] );
+        bytes.remove( endingPos - 3, bytes.size() - endingPos );
         QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 128, 60, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
         bytes.clear();
@@ -169,12 +173,15 @@ void MainWindow::on_yOffsetLineEdit_editingFinished()
     serial->write( data, 3 );
 }
 
-void MainWindow::updateOffsetLineEdits()
+void MainWindow::updateProperties()
 {
     if ( !ui->xOffsetLineEdit->hasFocus() )
         ui->xOffsetLineEdit->setText( QString::number( offset.first ) );
     if ( !ui->yOffsetLineEdit->hasFocus() )
         ui->yOffsetLineEdit->setText( QString::number( offset.second ) );
+    if ( !ui->aecLineEdit->hasFocus() )
+        ui->aecLineEdit->setText( QString::number( aec ) );
+    ui->avgLabel->setText( QString::number( luminance ) );
 }
 
 void MainWindow::on_shootButton_clicked()
@@ -185,4 +192,12 @@ void MainWindow::on_shootButton_clicked()
 void MainWindow::on_cameraCheckBox_clicked()
 {
     serial->write( "t" );
+}
+
+void MainWindow::on_aecLineEdit_editingFinished()
+{
+    aec = ui->aecLineEdit->text().toUInt();
+    char data[ 3 ] { 'e', 0, 0 };
+    ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = aec;
+    serial->write( data, 3 );
 }
