@@ -211,7 +211,7 @@ void my_printf( const char *fmt, ... )
 
 void CDC_TX_FRAME()
 {
-    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED || frameLen )
+    if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
         return;
     frameLen          = WIDTH * HEIGHT * 2 + 14;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
@@ -448,7 +448,7 @@ bool nightTestForBus() // by lights pattern
 
 uint8_t inline testForBus()
 {
-    if ( avg > 10 )
+    if ( avg > 25 )
         return dayTestForBus() ? 1 : 0;
     return nightTestForBus() ? 2 : 0;
 }
