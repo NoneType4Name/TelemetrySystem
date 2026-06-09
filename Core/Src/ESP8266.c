@@ -136,3 +136,61 @@ char *ESP8266_GetAcceessPoints()
 {
     return ESP8266_Send( "AT+CWLAP\r\n" ) && ESP8266_Recv( "OK" ) ? ESP_RX_buff : NULL;
 }
+
+char *ESP8266_GetResponse( uint32_t timeout )
+{
+    uint8_t prevRecvByte = 0;
+    uint32_t time        = HAL_GetTick();
+    char *ipdStart;
+    char *dataStart;
+    int dataLen;
+    char tempBuff[ ESP_RX_buff_size ];
+    int totalLen = 0;
+    int connId, payloadLen;
+
+    ESP8266_ClearRecvBuff();
+    HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
+
+    while ( HAL_GetTick() - time < timeout )
+    {
+        if ( prevRecvByte != recvByte )
+        {
+            time         = HAL_GetTick();
+            prevRecvByte = recvByte;
+        }
+    }
+
+    HAL_UART_AbortReceive( ESP8266_huart );
+
+    if ( ESP_RX_buff_index == 0 )
+        return NULL;
+
+    memset( tempBuff, 0, ESP_RX_buff_size );
+
+    ipdStart = strstr( ESP_RX_buff, "+IPD" );
+    while ( ipdStart != NULL && totalLen < ESP_RX_buff_size - 1 )
+    {
+        if ( sscanf( ipdStart, "+IPD,%d,%d:", &connId, &payloadLen ) != 2 )
+            break;
+
+        dataStart = strchr( ipdStart, ':' );
+        if ( dataStart == NULL )
+            break;
+
+        dataStart++;
+
+        if ( payloadLen > 0 && totalLen + payloadLen <= ESP_RX_buff_size - 1 )
+        {
+            memcpy( tempBuff + totalLen, dataStart, payloadLen );
+            totalLen += payloadLen;
+        }
+
+        ipdStart = strstr( dataStart + payloadLen, "+IPD" );
+    }
+
+    ESP8266_ClearRecvBuff();
+    memcpy( ESP_RX_buff, tempBuff, totalLen );
+    ESP_RX_buff_index = totalLen;
+
+    return totalLen > 0 ? ESP_RX_buff : NULL;
+}

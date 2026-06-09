@@ -36,4 +36,6 @@ bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port );
 bool ESP8266_AT_CIPSEND( int requestLength );
 bool ESP8266_AT_SendData( const char *request );
 
+char *ESP8266_GetResponse( uint32_t timeout );
+
 #endif /* ESP8266_H_ */
