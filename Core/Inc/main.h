@@ -67,6 +67,7 @@ extern "C"
 #define LED_GPIO_Port       GPIOE
 #define BUTTON_Pin          GPIO_PIN_13
 #define BUTTON_GPIO_Port    GPIOC
+#define BUTTON_EXTI_IRQn    EXTI15_10_IRQn
 #define DCMI_PWDN_Pin       GPIO_PIN_7
 #define DCMI_PWDN_GPIO_Port GPIOA
 #define ESP_PW_Pin          GPIO_PIN_12

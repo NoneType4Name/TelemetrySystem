@@ -18,10 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_gcc.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal_dcmi.h"
-#include "stm32h7xx_hal_rtc.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -1267,7 +1264,7 @@ static void MX_GPIO_Init( void )
 
     /*Configure GPIO pin : BUTTON_Pin */
     GPIO_InitStruct.Pin  = BUTTON_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init( BUTTON_GPIO_Port, &GPIO_InitStruct );
 
@@ -1298,6 +1295,10 @@ static void MX_GPIO_Init( void )
     GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init( SDMMC1_SW_GPIO_Port, &GPIO_InitStruct );
+
+    /* EXTI interrupt init*/
+    HAL_NVIC_SetPriority( BUTTON_EXTI_IRQn, 0, 0 );
+    HAL_NVIC_EnableIRQ( BUTTON_EXTI_IRQn );
 
     /* USER CODE BEGIN MX_GPIO_Init_2 */
 
