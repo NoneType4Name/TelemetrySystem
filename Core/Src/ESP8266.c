@@ -139,24 +139,35 @@ char *ESP8266_GetAcceessPoints()
 
 char *ESP8266_GetResponse( uint32_t timeout )
 {
-    uint8_t prevRecvByte = 0;
-    uint32_t time        = HAL_GetTick();
-    char *ipdStart;
-    char *dataStart;
-    int dataLen;
+    char *ipdStart  = NULL;
+    char *dataStart = NULL;
     char tempBuff[ ESP_RX_buff_size ];
-    int totalLen = 0;
-    int connId, payloadLen;
+    int totalLen    = 0;
+    int connId      = 0;
+    int payloadLen  = 0;
+    int bytesNeeded = 0;
+    uint32_t time   = HAL_GetTick();
 
     ESP8266_ClearRecvBuff();
     HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
 
-    while ( HAL_GetTick() - time < timeout )
+    while ( HAL_GetTick() - time < timeout && ( bytesNeeded == 0 || ESP_RX_buff_index < bytesNeeded ) )
     {
-        if ( prevRecvByte != recvByte )
+        ipdStart = strstr( ESP_RX_buff, "+IPD" );
+        while ( ipdStart != NULL && ipdStart < ESP_RX_buff + ESP_RX_buff_index )
         {
-            time         = HAL_GetTick();
-            prevRecvByte = recvByte;
+            if ( sscanf( ipdStart, "+IPD,%d,%d:", &connId, &payloadLen ) == 2 )
+            {
+                dataStart = strchr( ipdStart, ':' );
+                if ( dataStart != NULL )
+                {
+                    dataStart++;
+                    int offset  = dataStart - ESP_RX_buff;
+                    bytesNeeded = offset + payloadLen;
+                    break;
+                }
+            }
+            ipdStart = strstr( ipdStart + 1, "+IPD" );
         }
     }
 
@@ -167,6 +178,7 @@ char *ESP8266_GetResponse( uint32_t timeout )
 
     memset( tempBuff, 0, ESP_RX_buff_size );
 
+    // Извлечение всех +IPD блоков из буфера
     ipdStart = strstr( ESP_RX_buff, "+IPD" );
     while ( ipdStart != NULL && totalLen < ESP_RX_buff_size - 1 )
     {
@@ -179,6 +191,7 @@ char *ESP8266_GetResponse( uint32_t timeout )
 
         dataStart++;
 
+        // Копирование данных между разделителями ":" в временный буфер
         if ( payloadLen > 0 && totalLen + payloadLen <= ESP_RX_buff_size - 1 )
         {
             memcpy( tempBuff + totalLen, dataStart, payloadLen );
@@ -188,6 +201,7 @@ char *ESP8266_GetResponse( uint32_t timeout )
         ipdStart = strstr( dataStart + payloadLen, "+IPD" );
     }
 
+    // Замена исходного буфера очищенными данными
     ESP8266_ClearRecvBuff();
     memcpy( ESP_RX_buff, tempBuff, totalLen );
     ESP_RX_buff_index = totalLen;

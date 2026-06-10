@@ -717,6 +717,7 @@ int main( void )
                                                            "User-Agent: ESP8266\r\n"
                                                            "Accept: application/json\r\n"
                                                            "Connection: close\r\n" );
+    auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "{" );
 
     /* USER CODE END 2 */
 
