@@ -37,7 +37,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <vector>
-// #include "TestImage.h"
+#include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -83,7 +83,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBufferss[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -97,6 +97,7 @@ bool newFrame { 0 };
 bool usbConnected { 0 };
 bool newConfigProcessed { 1 };
 uint8_t debugCameraPattern { 0 };
+bool nightMode { 0 };
 uint8_t avg;
 uint16_t aec;
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
@@ -226,6 +227,17 @@ void CDC_TX_FRAME()
     p = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
     ov2640_get_luminance_average( &gs_handle, &avg );
     ov2640_get_aec( &gs_handle, reinterpret_cast<uint16_t *>( &p[ 0 ] ) );
+    if ( avg < 8 && !nightMode )
+    {
+        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
+        ov2640_set_aec( &gs_handle, 200 );
+        nightMode = true;
+    }
+    else
+    {
+        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
+        nightMode = false;
+    }
     // ( *reinterpret_cast<uint16_t *>( &p[ 0 ] ) ) = aec;
     p[ 2 ] = avg;
     p[ 3 ] = 'e';
@@ -280,7 +292,7 @@ bool inline isGrey( uint16_t pixel )
 std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool nightMode )
 {
     std::vector<uint16_t> stack { leftUpPixelInd };
-    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
+    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
 
     uint16_t filled { 1 };
     uint8_t maxX = GET_X( leftUpPixelInd );
@@ -314,7 +326,7 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
                     if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( isYellow( frameBuffers[ 0 ][ nidx ] ) || isLight( frameBuffers[ 0 ][ nidx ] ) ) : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
                     {
                         pixelVisited.set( nidx - 4 );
-                        // frameBuffers[ 0 ][ nidx ] = 0x07e0;
+                        frameBuffers[ 0 ][ nidx ] = 0x07e0;
                         ++filled;
                         uint8_t px = GET_X( nidx );
                         uint8_t py = GET_Y( nidx );
@@ -353,11 +365,11 @@ bool inline dayTestForBus()
                     if ( dh > 20 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( ( square > 4000 && ( d > 2.f && d < 2.8f ) ) || ( d > 3.f && d < 3.8f ) ) // square > 4000 -> ratio ~ 2.5f | 2000 < square < 4000 -> ratio ~ 3.5f - #experemental
+                        if ( ( square > 4000 && ( d > 2.f && d < 2.8f ) ) || ( d > 3.f && d < 4.5f ) ) // square > 4000 -> ratio ~ 2.5f | 2000 < square < 4000 -> ratio ~ 3.5f - #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
                                 debugCameraPattern = 1;
-                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
+                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH + 4 ? GET_X( rightP[ 1 ] ) + 1 : WIDTH + 3 ); ++x )
                             {
                                 if ( GET_Y( leftP ) > 0 )
                                     frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
@@ -369,24 +381,12 @@ bool inline dayTestForBus()
                             {
                                 if ( GET_X( leftP ) > 0 )
                                     frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
-                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
+                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH + 4 )
                                     frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
                             }
                         }
                         else
                             debugCameraPattern = 1;
-                    }
-                }
-                else if ( square > 2000 )
-                {
-                    if ( dh > 20 )
-                    {
-                        float d = ( ( float ) ( dw ) / dh );
-                        if ( d > 3.f && d < 3.5f )
-                        {
-                            if ( ++countLightBluePattern > 1 )
-                                debugCameraPattern = 1;
-                        }
                     }
                 }
             }
@@ -446,11 +446,11 @@ bool nightTestForBus() // by lights pattern
     return countLightsPattern > 0;
 }
 
-uint8_t inline testForBus()
+bool inline testForBus()
 {
-    if ( avg > 25 )
-        return dayTestForBus() ? 1 : 0;
-    return nightTestForBus() ? 2 : 0;
+    if ( nightMode )
+        return nightTestForBus();
+    return dayTestForBus();
 }
 
 // bool inline getZoomed()
@@ -687,8 +687,8 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBufferss, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBufferss[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -765,14 +765,13 @@ int main( void )
             if ( CameraCountDownEnded && getToggle() && sdCardPresented )
             {
                 {
-                    uint8_t b { testForBus() };
-                    if ( b )
+                    if ( testForBus() )
                     {
                         char name[ 18 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "/data/img%d-%s.bmp", photoNum, b - 1 ? "n" : "d" );
+                            sprintf( name, "/data/img%d-%s-%d.bmp", photoNum, nightMode ? "n" : "d", avg );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                             enableLed2ms();
                         }

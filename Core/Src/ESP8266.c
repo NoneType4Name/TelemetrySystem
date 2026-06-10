@@ -178,7 +178,6 @@ char *ESP8266_GetResponse( uint32_t timeout )
 
     memset( tempBuff, 0, ESP_RX_buff_size );
 
-    // Извлечение всех +IPD блоков из буфера
     ipdStart = strstr( ESP_RX_buff, "+IPD" );
     while ( ipdStart != NULL && totalLen < ESP_RX_buff_size - 1 )
     {
@@ -191,7 +190,6 @@ char *ESP8266_GetResponse( uint32_t timeout )
 
         dataStart++;
 
-        // Копирование данных между разделителями ":" в временный буфер
         if ( payloadLen > 0 && totalLen + payloadLen <= ESP_RX_buff_size - 1 )
         {
             memcpy( tempBuff + totalLen, dataStart, payloadLen );
@@ -201,7 +199,6 @@ char *ESP8266_GetResponse( uint32_t timeout )
         ipdStart = strstr( dataStart + payloadLen, "+IPD" );
     }
 
-    // Замена исходного буфера очищенными данными
     ESP8266_ClearRecvBuff();
     memcpy( ESP_RX_buff, tempBuff, totalLen );
     ESP_RX_buff_index = totalLen;
