@@ -54,9 +54,9 @@ bool ESP8266_DisconnectFromWifi()
     return ESP8266_Send( "AT+CWQAP\r\n" ) && ESP8266_Recv( "OK" );
 }
 
-char *ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request )
+bool ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request )
 {
-    return ESP8266_AT_CIPSTART( type, ip, port ) && ESP8266_AT_CIPSEND( strlen( request ) + 2 ) && ESP8266_AT_SendData( request ) ? ESP_RX_buff : NULL;
+    return ESP8266_AT_CIPSTART( type, ip, port ) && ESP8266_AT_CIPSEND( strlen( request ) + 2 ) && ESP8266_AT_SendData( request );
 }
 
 bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port )
@@ -74,7 +74,7 @@ bool ESP8266_AT_CIPSEND( int requestLength )
 bool ESP8266_AT_SendData( const char *request )
 {
     sprintf( ESP_TX_buff, "%s\r\n", request );
-    return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "}" );
+    return ESP8266_Send( ESP_TX_buff );
 }
 
 bool ESP8266_Send( const char *command )

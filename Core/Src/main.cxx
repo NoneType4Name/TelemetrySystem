@@ -20,6 +20,8 @@
 #include "main.h"
 #include "cmsis_gcc.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal_dcmi.h"
+#include "stm32h7xx_hal_rtc.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -37,7 +39,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <vector>
-#include "TestImage.h"
+// #include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -83,7 +85,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBufferss[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -289,10 +291,10 @@ bool inline isGrey( uint16_t pixel )
     return true && ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
-std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool nightMode )
+std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool nightMode ) // [left up corner, right down corner, count]
 {
     std::vector<uint16_t> stack { leftUpPixelInd };
-    frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
+    // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
 
     uint16_t filled { 1 };
     uint8_t maxX = GET_X( leftUpPixelInd );
@@ -326,7 +328,7 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
                     if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( isYellow( frameBuffers[ 0 ][ nidx ] ) || isLight( frameBuffers[ 0 ][ nidx ] ) ) : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
                     {
                         pixelVisited.set( nidx - 4 );
-                        frameBuffers[ 0 ][ nidx ] = 0x07e0;
+                        // frameBuffers[ 0 ][ nidx ] = 0x07e0;
                         ++filled;
                         uint8_t px = GET_X( nidx );
                         uint8_t py = GET_Y( nidx );
@@ -360,29 +362,29 @@ bool inline dayTestForBus()
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                if ( square > 2000 )
+                if ( square > 1000 )
                 {
-                    if ( dh > 20 )
+                    if ( dh > 12 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( ( square > 4000 && ( d > 2.f && d < 2.8f ) ) || ( d > 3.f && d < 4.5f ) ) // square > 4000 -> ratio ~ 2.5f | 2000 < square < 4000 -> ratio ~ 3.5f - #experemental
+                        if ( ( square > 3000 && ( d > 2.f && d < 3.f ) ) || ( d > 4.f && d < 6.5f ) ) // (square > 3000 -> ratio in range 2-3 - bus | 1000 < square < 3000 -> ratio ~ 4-6.5f - roof of bus) #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
                                 debugCameraPattern = 1;
                             for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH + 4 ? GET_X( rightP[ 1 ] ) + 1 : WIDTH + 3 ); ++x )
                             {
                                 if ( GET_Y( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
+                                    frameBuffers[ 0 ][ 4 + ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
                                 if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
+                                    frameBuffers[ 0 ][ 4 + ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
                             }
 
                             for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                             {
                                 if ( GET_X( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
+                                    frameBuffers[ 0 ][ 4 + y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
                                 if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH + 4 )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
+                                    frameBuffers[ 0 ][ 4 + y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
                             }
                         }
                         else
@@ -405,8 +407,6 @@ bool nightTestForBus() // by lights pattern
             uint16_t leftP = 4 + w + h * WIDTH;
             if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( frameBuffers[ 0 ][ leftP ] ) || isLight( frameBuffers[ 0 ][ leftP ] ) ) )
             {
-                auto s          = ( isYellow( frameBuffers[ 0 ][ leftP ] ) || isLight( frameBuffers[ 0 ][ leftP ] ) );
-                auto ss         = frameBuffers[ 0 ][ leftP ];
                 auto rightP     = fillColorPattern( leftP, 1 );
                 leftP           = rightP[ 0 ];
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
@@ -687,8 +687,7 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBufferss, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBufferss[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -712,12 +711,15 @@ int main( void )
             __NOP();
     }
 
-    ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                                                           "Host: moscowtransport.app\r\n"
-                                                           "User-Agent: ESP8266\r\n"
-                                                           "Accept: application/json\r\n"
-                                                           "Connection: close\r\n" );
-    auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "{" );
+    if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                                                                "Host: moscowtransport.app\r\n"
+                                                                "User-Agent: ESP8266\r\n"
+                                                                "Accept: application/json\r\n"
+                                                                "Connection: close\r\n" ) )
+    {
+        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "{" );
+    }
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -725,7 +727,12 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        // HAL_DCMI_FrameEventCallback( 0 );
+        // RTC_TimeTypeDef sTime;
+        // RTC_DateTypeDef sDate;
+        // HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
+        // HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
+        // char timeStr[ 20 ];
+        // snprintf( timeStr, 20, "Time %d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds );
         if ( CDC_RxStatus )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
@@ -762,10 +769,13 @@ int main( void )
         }
         if ( newFrame )
         {
+            newFrame = false;
             if ( CameraCountDownEnded && getToggle() && sdCardPresented )
             {
                 {
-                    if ( testForBus() )
+                    auto testResult = testForBus();
+                    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+                    if ( testResult )
                     {
                         char name[ 18 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
@@ -792,7 +802,10 @@ int main( void )
                     }
                 }
             }
-            newFrame = false;
+            else
+            {
+                HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+            }
             CDC_TX_FRAME();
         }
         if ( sdCardPresented && !sdCardMounted )
