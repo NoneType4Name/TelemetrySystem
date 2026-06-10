@@ -228,14 +228,16 @@ void CDC_TX_FRAME()
 
     p = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
     ov2640_get_luminance_average( &gs_handle, &avg );
-    ov2640_get_aec( &gs_handle, reinterpret_cast<uint16_t *>( &p[ 0 ] ) );
-    if ( avg < 8 && !nightMode )
+    uint16_t Taec;
+    ov2640_get_aec( &gs_handle, &Taec );
+    *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = Taec;
+    if ( avg > 10 && aec > 500 && !nightMode )
     {
         ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
         ov2640_set_aec( &gs_handle, 200 );
         nightMode = true;
     }
-    else
+    else if ( nightMode && avg > 4 )
     {
         ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
         nightMode = false;
@@ -705,10 +707,8 @@ int main( void )
         while ( 1 )
             __NOP();
 
-    if ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
     {
-        while ( 1 )
-            __NOP();
     }
 
     if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -717,7 +717,7 @@ int main( void )
                                                                 "Accept: application/json\r\n"
                                                                 "Connection: close\r\n" ) )
     {
-        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "{" );
+        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "\r\n" ) + 1;
     }
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 

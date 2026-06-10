@@ -81,7 +81,7 @@ bool ESP8266_Send( const char *command )
 {
     // return HAL_UART_Transmit_DMA(ESP8266_huart, (uint8_t*)command, strlen(command));
     HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
-    return HAL_UART_Transmit( ESP8266_huart, ( uint8_t * ) command, strlen( command ), 100 ) == HAL_OK ? true : false;
+    return HAL_UART_Transmit( ESP8266_huart, ( uint8_t * ) command, strlen( command ), 100 ) == HAL_OK;
 }
 
 bool ESP8266_Recv( const char *correctAnswer )
@@ -91,7 +91,7 @@ bool ESP8266_Recv( const char *correctAnswer )
     uint32_t time        = HAL_GetTick();
 
     ESP8266_ClearRecvBuff();
-    HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
+    HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 ); // todo: really need?
 
     while ( HAL_GetTick() - time < timeout )
     {
