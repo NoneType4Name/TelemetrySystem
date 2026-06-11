@@ -174,11 +174,15 @@ void HAL_GPIO_EXTI_Callback( uint16_t GPIO_Pin )
     {
         if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
         {
+            if ( sdCardPresented )
+                return;
             sdCardPresented = 1;
             HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
         }
         else
         {
+            if ( !sdCardPresented )
+                return;
             sdCardPresented = 0;
             sdCardMounted   = 0;
             f_mount( 0, SDPath, 1 );
@@ -230,15 +234,17 @@ void CDC_TX_FRAME()
     uint16_t Taec;
     ov2640_get_aec( &gs_handle, &Taec );
     *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = Taec;
-    if ( avg > 10 && aec > 500 && !nightMode )
+    if ( ( avg < 10 && Taec > 500 ) && !nightMode )
     {
         ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
         ov2640_set_aec( &gs_handle, 200 );
+        aec       = 200;
         nightMode = true;
     }
-    else if ( nightMode && avg > 4 )
+    else if ( nightMode && avg > 2 )
     {
         ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
+        aec       = 0;
         nightMode = false;
     }
     // ( *reinterpret_cast<uint16_t *>( &p[ 0 ] ) ) = aec;
@@ -592,9 +598,9 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
     HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
     fData.fdate = ( WORD ) ( ( ( 2000 + sDate.Year - 1980 ) << 9 ) | ( sDate.Month << 5 ) | sDate.Date );
     fData.ftime = ( WORD ) ( ( sTime.Hours << 11 ) | ( sTime.Minutes << 5 ) | ( sTime.Seconds >> 1 ) );
+    f_close( &FatFsFile );
     f_utime( filename, &fData );
     f_sync( &FatFsFile );
-    f_close( &FatFsFile );
 }
 
 // zero, if error
@@ -777,11 +783,11 @@ int main( void )
             }
             else if ( UserRxBufferFS[ 0 ] == 's' ) // shoot
             {
-                char name[ 18 ];
+                char name[ 20 ];
                 uint32_t photoNum { IncrementLastPhotoNumber() };
                 if ( photoNum )
                 {
-                    sprintf( name, "/shots/img%d.bmp", photoNum );
+                    sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
                     SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                     enableLed2ms();
                 }
@@ -802,11 +808,11 @@ int main( void )
                     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
                     if ( testResult )
                     {
-                        char name[ 18 ];
+                        char name[ 25 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "/data/img%d-%s-%d.bmp", photoNum, nightMode ? "n" : "d", avg );
+                            sprintf( name, "0:/data/img%d-%s-%d.bmp", ( int ) photoNum, nightMode ? "n" : "d", ( int ) avg );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                             enableLed2ms();
                         }
@@ -815,11 +821,11 @@ int main( void )
                     }
                     if ( debugCameraPattern )
                     {
-                        char name[ 20 ];
+                        char name[ 25 ];
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "/debug/d%d-%c-%d.bmp", photoNum, nightMode ? 'n' : 'd', avg );
+                            sprintf( name, "0:/debug/d%d-%c-%d.bmp", ( int ) photoNum, nightMode ? 'n' : 'd', ( int ) avg );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                             enableLed2ms();
                         }
@@ -1329,6 +1335,9 @@ static void MX_GPIO_Init( void )
     HAL_GPIO_Init( SDMMC1_SW_GPIO_Port, &GPIO_InitStruct );
 
     /* EXTI interrupt init*/
+    HAL_NVIC_SetPriority( SDMMC1_SW_EXTI_IRQn, 0, 0 );
+    HAL_NVIC_EnableIRQ( SDMMC1_SW_EXTI_IRQn );
+
     HAL_NVIC_SetPriority( BUTTON_EXTI_IRQn, 0, 0 );
     HAL_NVIC_EnableIRQ( BUTTON_EXTI_IRQn );
 
