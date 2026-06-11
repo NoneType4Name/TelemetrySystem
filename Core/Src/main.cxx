@@ -215,6 +215,20 @@ void my_printf( const char *fmt, ... )
     HAL_Delay( 50 );
 }
 
+void getAverageLuminance()
+{
+    uint32_t sum = 0;
+    for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
+    {
+        uint16_t pixel = frameBuffers[ 0 ][ 4 + i ];
+        uint8_t r      = RGB565_R( pixel );
+        uint8_t g      = RGB565_G( pixel ) << 1;
+        uint8_t b      = RGB565_B( pixel );
+        sum += ( r + g + b ) / 3;
+    }
+    avg = sum / ( WIDTH * HEIGHT );
+}
+
 void CDC_TX_FRAME()
 {
     if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
@@ -230,8 +244,8 @@ void CDC_TX_FRAME()
     ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
 
     p = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
-    ov2640_get_luminance_average( &gs_handle, &avg );
     uint16_t Taec;
+    ov2640_set_luminance_average( &gs_handle, avg );
     ov2640_get_aec( &gs_handle, &Taec );
     *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = Taec;
     if ( ( avg < 10 && Taec > 500 ) && !nightMode )
@@ -729,26 +743,26 @@ int main( void )
     memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
 
     // init ESP
-    ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
-    ESP8266_ON();
-    ESP8266_Send( "AT+CWMODE=1\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        Error_Handler();
+    // ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
+    // ESP8266_ON();
+    // ESP8266_Send( "AT+CWMODE=1\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
 
-    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        Error_Handler();
+    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
 
-    ESP8266_Send( "AT+CIPMUX=1\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        Error_Handler();
+    // ESP8266_Send( "AT+CIPMUX=1\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
 
-    while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
-    {
-        HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
-    }
-    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
-    updateTime();
+    // while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    // {
+    //     HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
+    // }
+    // HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
+    // updateTime();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
     //                                                             "Host: moscowtransport.app\r\n"
@@ -837,6 +851,7 @@ int main( void )
             {
                 HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
             }
+            getAverageLuminance();
             CDC_TX_FRAME();
         }
         if ( sdCardPresented && !sdCardMounted )
