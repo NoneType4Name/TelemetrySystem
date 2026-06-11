@@ -19,8 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "stm32_hal_legacy.h"
-#include "stm32h7xx_hal_rtc.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -587,6 +585,14 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
             }
         }
     }
+    FILINFO fData;
+    RTC_TimeTypeDef sTime;
+    RTC_DateTypeDef sDate;
+    HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
+    HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
+    fData.fdate = ( WORD ) ( ( ( 2000 + sDate.Year - 1980 ) << 9 ) | ( sDate.Month << 5 ) | sDate.Date );
+    fData.ftime = ( WORD ) ( ( sTime.Hours << 11 ) | ( sTime.Minutes << 5 ) | ( sTime.Seconds >> 1 ) );
+    f_utime( filename, &fData );
     f_sync( &FatFsFile );
     f_close( &FatFsFile );
 }
@@ -733,7 +739,9 @@ int main( void )
 
     while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
     {
+        HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
     }
+    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
     updateTime();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -750,12 +758,6 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        RTC_TimeTypeDef sTime;
-        RTC_DateTypeDef sDate;
-        HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
-        HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
-        char timeStr[ 20 ];
-        snprintf( timeStr, 20, "Time %d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds );
         if ( CDC_RxStatus )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset

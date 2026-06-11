@@ -87,7 +87,7 @@ bool ESP8266_Send( const char *command )
 bool ESP8266_Recv( const char *correctAnswer )
 {
     uint8_t prevRecvByte = 0;
-    uint32_t timeout     = 5000;
+    uint32_t timeout     = 1000;
     uint32_t time        = HAL_GetTick();
 
     ESP8266_ClearRecvBuff();
