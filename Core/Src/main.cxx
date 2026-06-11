@@ -19,6 +19,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32_hal_legacy.h"
+#include "stm32h7xx_hal_rtc.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -95,8 +97,9 @@ bool sdCardMounted { 0 };
 bool newFrame { 0 };
 bool usbConnected { 0 };
 bool newConfigProcessed { 1 };
-uint8_t debugCameraPattern { 0 };
+bool timeToCalibrateRTC { 0 };
 bool nightMode { 0 };
+bool debugCameraPattern { 0 };
 uint8_t avg;
 uint16_t aec;
 uint16_t offsetWithZoom[ 2 ] { 0, 0 };
@@ -122,6 +125,7 @@ static void MX_RTC_Init( void );
 void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
 {
     // every day at 00:00
+    timeToCalibrateRTC = true;
 }
 
 void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
@@ -369,7 +373,7 @@ bool inline dayTestForBus()
                         if ( ( square > 3000 && ( d > 2.f && d < 3.f ) ) || ( d > 4.f && d < 6.5f ) ) // (square > 3000 -> ratio in range 2-3 - bus | 1000 < square < 3000 -> ratio ~ 4-6.5f - roof of bus) #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
-                                debugCameraPattern = 1;
+                                debugCameraPattern = true;
                             for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH + 4 ? GET_X( rightP[ 1 ] ) + 1 : WIDTH + 3 ); ++x )
                             {
                                 if ( GET_Y( leftP ) > 0 )
@@ -387,7 +391,7 @@ bool inline dayTestForBus()
                             }
                         }
                         else
-                            debugCameraPattern = 1;
+                            debugCameraPattern = true;
                     }
                 }
             }
@@ -413,14 +417,14 @@ bool nightTestForBus() // by lights pattern
                 uint16_t square = dw * dh;
                 if ( square > 80 )
                 {
-                    if ( square > 200 ) debugCameraPattern = 2;
+                    if ( square > 200 ) debugCameraPattern = true;
                     if ( dh > 1 && dh < 9 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
                         if ( d > 5.f )
                         {
                             if ( ++countLightsPattern > 1 )
-                                debugCameraPattern = 2;
+                                debugCameraPattern = true;
                             for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                             {
                                 if ( GET_Y( leftP ) > 0 )
@@ -625,6 +629,30 @@ void enableLed2ms()
     HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_SET );
 }
 
+void updateTime()
+{
+    if ( ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
+                                                                          "Host: smartapp-code.sberdevices.ru\r\n"
+                                                                          "User-Agent: ESP8266\r\n"
+                                                                          "Accept: application/json\r\n"
+                                                                          "Connection: close\r\n" ) )
+    {
+        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
+        if ( d )
+        {
+            uint8_t day, month, year, hour, minute, second, dayOfWeek;
+
+            if ( sscanf( d, "{\"timezone\":\"Europe/Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"", ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour, ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek ) == 7 )
+            {
+                RTC_TimeTypeDef cTime { hour, minute, second };
+                RTC_DateTypeDef cData { dayOfWeek, month, day, year };
+                HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
+                HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
+            }
+        }
+    }
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -693,29 +721,27 @@ int main( void )
     ESP8266_ON();
     ESP8266_Send( "AT+CWMODE=1\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
-        while ( 1 )
-            __NOP();
+        Error_Handler();
+
     ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
-        while ( 1 )
-            __NOP();
+        Error_Handler();
+
     ESP8266_Send( "AT+CIPMUX=1\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
-        while ( 1 )
-            __NOP();
+        Error_Handler();
 
     while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
     {
     }
+    updateTime();
 
-    if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                                                                "Host: moscowtransport.app\r\n"
-                                                                "User-Agent: ESP8266\r\n"
-                                                                "Accept: application/json\r\n"
-                                                                "Connection: close\r\n" ) )
-    {
-        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ), "\r\n" ) + 1;
-    }
+    // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+    //                                                             "Host: moscowtransport.app\r\n"
+    //                                                             "User-Agent: ESP8266\r\n"
+    //                                                             "Accept: application/json\r\n"
+    //                                                             "Connection: close\r\n" ) )
+
     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
@@ -724,12 +750,12 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        // RTC_TimeTypeDef sTime;
-        // RTC_DateTypeDef sDate;
-        // HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
-        // HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
-        // char timeStr[ 20 ];
-        // snprintf( timeStr, 20, "Time %d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds );
+        RTC_TimeTypeDef sTime;
+        RTC_DateTypeDef sDate;
+        HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
+        HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
+        char timeStr[ 20 ];
+        snprintf( timeStr, 20, "Time %d:%d:%d\n", sTime.Hours, sTime.Minutes, sTime.Seconds );
         if ( CDC_RxStatus )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
@@ -791,11 +817,11 @@ int main( void )
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "/debug/d%d-%c-%d.bmp", photoNum, debugCameraPattern - 1 ? 'n' : 'd', avg );
+                            sprintf( name, "/debug/d%d-%c-%d.bmp", photoNum, nightMode ? 'n' : 'd', avg );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
                             enableLed2ms();
                         }
-                        debugCameraPattern = 0;
+                        debugCameraPattern = false;
                     }
                 }
             }
@@ -819,7 +845,11 @@ int main( void )
                     sdCardMounted = 1;
             }
         }
-
+        if ( timeToCalibrateRTC )
+        {
+            updateTime();
+            timeToCalibrateRTC = false;
+        }
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
