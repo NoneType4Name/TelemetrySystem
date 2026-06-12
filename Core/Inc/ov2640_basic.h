@@ -72,7 +72,7 @@ extern "C"
 #define OV2640_BASIC_DEFAULT_PIN_STATUS            OV2640_PIN_STATUS_LAST_STATE     /**< tri state */
 #define OV2640_BASIC_DEFAULT_ZOOM_WINDOW_V_START   0x0000                           /**< 0x0000 */
 #define OV2640_BASIC_DEFAULT_LUMINANCE_HIGH        0x40                             /**< 0x40 */
-#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW         0x01                             /**< 0x38 */
+#define OV2640_BASIC_DEFAULT_LUMINANCE_LOW         0x38                             /**< 0x38 */
 #define OV2640_BASIC_DEFAULT_FAST_MODE_HIGH        0x8                              /**< 0x8 */
 #define OV2640_BASIC_DEFAULT_FAST_MODE_LOW         0x2                              /**< 0x2 */
 #define OV2640_BASIC_DEFAULT_FRAME_LENGTH_ADJ      0x0022                           /**< 0x0000 */

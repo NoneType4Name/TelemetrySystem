@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal_dcmi.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -100,8 +101,27 @@ bool nightMode { 0 };
 bool debugCameraPattern { 0 };
 uint8_t avg;
 uint16_t aec;
-uint16_t offsetWithZoom[ 2 ] { 0, 0 };
+uint16_t offsetXY[ 2 ] { 0, 0 };
 FATFS FatFs;
+
+struct AecAutoControl
+{
+    uint16_t targetMax     = 30;
+    uint16_t targetMin     = 25;
+    uint16_t aecValue      = 200;
+    uint8_t stableCount    = 0;
+    uint8_t requiredStable = 2;
+    int16_t stepSize       = 1;
+} aecControl;
+
+struct KalmanFilterState
+{
+    float estimate     = 0.0f;
+    float errorCovar   = 1.0f;
+    float processNoise = 0.5f;
+    float measureNoise = 4.0f;
+} kalmanState;
+
 FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
 std::bitset<WIDTH * HEIGHT> pixelVisited { 0 };
@@ -143,19 +163,15 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
 void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
     newFrame = true;
+    DCMI->CR &= ~DCMI_CR_CAPTURE;
+    if ( aec == 0 )
+        ov2640_set_aec( &gs_handle, aecControl.aecValue );
     if ( newConfigProcessed )
         return;
-    ov2640_set_offset_x( &gs_handle, offsetWithZoom[ 0 ] );
-    ov2640_set_offset_y( &gs_handle, offsetWithZoom[ 1 ] & 0xFFF );
-    if ( aec == 0 )
-    {
-        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
-    }
-    else
-    {
-        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
+    ov2640_set_offset_x( &gs_handle, offsetXY[ 0 ] );
+    ov2640_set_offset_y( &gs_handle, offsetXY[ 1 ] & 0xFFF );
+    if ( aec )
         ov2640_set_aec( &gs_handle, aec );
-    }
     newConfigProcessed = true;
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
@@ -217,6 +233,8 @@ void my_printf( const char *fmt, ... )
 
 void getAverageLuminance()
 {
+    if ( !newConfigProcessed )
+        return;
     uint32_t sum = 0;
     for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
     {
@@ -226,7 +244,15 @@ void getAverageLuminance()
         uint8_t b      = RGB565_B( pixel );
         sum += ( r + g + b ) / 3;
     }
-    avg = sum / ( WIDTH * HEIGHT );
+    uint8_t measurement = sum / ( WIDTH * HEIGHT );
+
+    float predict_error = kalmanState.errorCovar + kalmanState.processNoise;
+    float kalman_gain   = predict_error / ( predict_error + kalmanState.measureNoise );
+
+    kalmanState.estimate   = kalmanState.estimate + kalman_gain * ( measurement - kalmanState.estimate );
+    kalmanState.errorCovar = ( 1.0f - kalman_gain ) * predict_error;
+
+    avg = ( uint8_t ) ( kalmanState.estimate + 0.5f );
 }
 
 void CDC_TX_FRAME()
@@ -240,32 +266,15 @@ void CDC_TX_FRAME()
     p[ 1 ]                                       = 'g';
     p[ 2 ]                                       = 'n';
     p[ 3 ]                                       = 'n';
-    ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetWithZoom[ 0 ];
-    ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetWithZoom[ 1 ];
+    ( *reinterpret_cast<uint16_t *>( &p[ 4 ] ) ) = offsetXY[ 0 ];
+    ( *reinterpret_cast<uint16_t *>( &p[ 6 ] ) ) = offsetXY[ 1 ];
 
-    p = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
-    uint16_t Taec;
-    ov2640_set_luminance_average( &gs_handle, avg );
-    ov2640_get_aec( &gs_handle, &Taec );
-    *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = Taec;
-    if ( ( avg < 10 && Taec > 500 ) && !nightMode )
-    {
-        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
-        ov2640_set_aec( &gs_handle, 200 );
-        aec       = 200;
-        nightMode = true;
-    }
-    else if ( nightMode && avg > 2 )
-    {
-        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_AUTO );
-        aec       = 0;
-        nightMode = false;
-    }
-    // ( *reinterpret_cast<uint16_t *>( &p[ 0 ] ) ) = aec;
-    p[ 2 ] = avg;
-    p[ 3 ] = 'e';
-    p[ 4 ] = 'n';
-    p[ 5 ] = 'd';
+    p                                        = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
+    *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = aec ? aec : aecControl.aecValue;
+    p[ 2 ]                                   = avg;
+    p[ 3 ]                                   = 'e';
+    p[ 4 ]                                   = 'n';
+    p[ 5 ]                                   = 'd';
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
@@ -486,12 +495,12 @@ bool inline testForBus()
 
 bool inline getToggle()
 {
-    return offsetWithZoom[ 1 ] & 1 << 14;
+    return offsetXY[ 1 ] & 1 << 14;
 }
 
 void inline ReSetToggle()
 {
-    offsetWithZoom[ 1 ] ^= ( 1 << 14 );
+    offsetXY[ 1 ] ^= ( 1 << 14 );
 }
 
 void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
@@ -679,6 +688,68 @@ void updateTime()
     }
 }
 
+void aecAutoControl()
+{
+    if ( aec != 0 )
+        return;
+
+    if ( avg >= aecControl.targetMin && avg <= aecControl.targetMax )
+    {
+        if ( ++aecControl.stableCount >= aecControl.requiredStable )
+        {
+            aecControl.stableCount = 0;
+            return;
+        }
+    }
+    else if ( nightMode )
+    {
+        if ( avg > 2 )
+        {
+            nightMode              = false;
+            aecControl.stableCount = 0;
+        }
+        else
+        {
+            aecControl.aecValue = 200;
+            nightMode           = true;
+        }
+    }
+    else
+    {
+        aecControl.stableCount = 0;
+
+        uint8_t target = ( aecControl.targetMin + aecControl.targetMax ) / 2;
+        int16_t error  = avg - target;
+
+        int16_t absError   = ( error < 0 ) ? -error : error;
+        int16_t scaledStep = ( absError * aecControl.stepSize ) / 10;
+
+        if ( scaledStep < aecControl.stepSize )
+            scaledStep = aecControl.stepSize;
+        if ( scaledStep > aecControl.stepSize * 5 )
+            scaledStep = aecControl.stepSize * 5;
+
+        int16_t adjustment = ( error < 0 ) ? scaledStep : -scaledStep;
+
+        int16_t newAec = aecControl.aecValue + adjustment;
+        if ( newAec < 1 )
+            newAec = 1;
+        if ( newAec > 500 )
+        {
+            if ( avg < 20 && !nightMode )
+            {
+                nightMode = true;
+            }
+            newAec = 500;
+        }
+
+        if ( newAec != aecControl.aecValue )
+        {
+            aecControl.aecValue = newAec;
+        }
+    }
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -770,7 +841,7 @@ int main( void )
     //                                                             "Accept: application/json\r\n"
     //                                                             "Connection: close\r\n" ) )
 
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -782,15 +853,15 @@ int main( void )
         {
             if ( UserRxBufferFS[ 0 ] == 'x' ) // x offset
             {
-                offsetWithZoom[ 0 ] = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
-                newConfigProcessed  = false;
+                offsetXY[ 0 ]      = ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) );
+                newConfigProcessed = false;
             }
             else if ( UserRxBufferFS[ 0 ] == 'y' ) // y offset
             {
-                offsetWithZoom[ 1 ] = ( ( offsetWithZoom[ 1 ] & ~0xFFF ) | ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) & 0xFFF ) );
-                newConfigProcessed  = false;
+                offsetXY[ 1 ]      = ( ( offsetXY[ 1 ] & ~0xFFF ) | ( *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] ) & 0xFFF ) );
+                newConfigProcessed = false;
             }
-            else if ( UserRxBufferFS[ 0 ] == 'e' ) // y offset
+            else if ( UserRxBufferFS[ 0 ] == 'e' ) // new aec
             {
                 aec                = *reinterpret_cast<uint16_t *>( &UserRxBufferFS[ 1 ] );
                 newConfigProcessed = false;
@@ -819,7 +890,7 @@ int main( void )
             {
                 {
                     auto testResult = testForBus();
-                    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+                    // HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
                     if ( testResult )
                     {
                         char name[ 25 ];
@@ -847,11 +918,14 @@ int main( void )
                     }
                 }
             }
-            else
-            {
-                HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
-            }
+            DCMI->CR |= DCMI_CR_CAPTURE;
+
+            // else
+            // {
+            //     HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_SNAPSHOT, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+            // }
             getAverageLuminance();
+            aecAutoControl();
             CDC_TX_FRAME();
         }
         if ( sdCardPresented && !sdCardMounted )
