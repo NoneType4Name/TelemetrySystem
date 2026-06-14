@@ -107,7 +107,7 @@ FATFS FatFs;
 struct AecAutoControl
 {
     uint16_t targetMax     = 30;
-    uint16_t targetMin     = 25;
+    uint16_t targetMin     = 20;
     uint16_t aecValue      = 200;
     uint8_t stableCount    = 0;
     uint8_t requiredStable = 2;
@@ -703,7 +703,7 @@ void aecAutoControl()
     }
     else if ( nightMode )
     {
-        if ( avg > 2 )
+        if ( avg > 3 )
         {
             nightMode              = false;
             aecControl.stableCount = 0;
@@ -722,7 +722,7 @@ void aecAutoControl()
         int16_t error  = avg - target;
 
         int16_t absError   = ( error < 0 ) ? -error : error;
-        int16_t scaledStep = ( absError * aecControl.stepSize ) / 10;
+        int16_t scaledStep = ( absError * aecControl.stepSize ) / 5;
 
         if ( scaledStep < aecControl.stepSize )
             scaledStep = aecControl.stepSize;
@@ -736,11 +736,12 @@ void aecAutoControl()
             newAec = 1;
         if ( newAec > 500 )
         {
-            if ( avg < 20 && !nightMode )
+            if ( avg < 10 && !nightMode )
             {
                 nightMode = true;
             }
-            newAec = 500;
+            else
+                newAec = 500;
         }
 
         if ( newAec != aecControl.aecValue )
@@ -814,26 +815,26 @@ int main( void )
     memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
 
     // init ESP
-    // ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
-    // ESP8266_ON();
-    // ESP8266_Send( "AT+CWMODE=1\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
+    ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
+    ESP8266_ON();
+    ESP8266_Send( "AT+CWMODE=1\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        Error_Handler();
 
-    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
+    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        Error_Handler();
 
-    // ESP8266_Send( "AT+CIPMUX=1\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
+    ESP8266_Send( "AT+CIPMUX=1\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+        Error_Handler();
 
-    // while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
-    // {
-    //     HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
-    // }
-    // HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
-    // updateTime();
+    while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    {
+        HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
+    }
+    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
+    updateTime();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
     //                                                             "Host: moscowtransport.app\r\n"
