@@ -108,7 +108,7 @@ struct AecAutoControl
 {
     uint16_t targetMax     = 30;
     uint16_t targetMin     = 20;
-    uint16_t aecValue      = 200;
+    uint16_t aecValue      = 400;
     uint8_t stableCount    = 0;
     uint8_t requiredStable = 2;
     int16_t stepSize       = 1;
@@ -693,24 +693,25 @@ void aecAutoControl()
     if ( aec != 0 )
         return;
 
-    if ( avg >= aecControl.targetMin && avg <= aecControl.targetMax )
+    // if ( avg >= aecControl.targetMin && avg <= aecControl.targetMax )
+    // {
+    //     if ( ++aecControl.stableCount >= aecControl.requiredStable )
+    //     {
+    //         aecControl.stableCount = 0;
+    //         return;
+    //     }
+    // }
+    // else
+    if ( nightMode )
     {
-        if ( ++aecControl.stableCount >= aecControl.requiredStable )
-        {
-            aecControl.stableCount = 0;
-            return;
-        }
-    }
-    else if ( nightMode )
-    {
-        if ( avg > 3 )
+        if ( avg > 6 )
         {
             nightMode              = false;
             aecControl.stableCount = 0;
         }
         else
         {
-            aecControl.aecValue = 200;
+            aecControl.aecValue = 400;
             nightMode           = true;
         }
     }
