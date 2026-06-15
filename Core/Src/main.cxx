@@ -166,13 +166,20 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     newFrame = true;
     DCMI->CR &= ~DCMI_CR_CAPTURE;
     if ( aec == 0 )
-        ov2640_set_aec( &gs_handle, aecControl.aecValue );
+    {
+        ov2640_set_exposure_control( &gs_handle, nightMode ? OV2640_CONTROL_MANUAL : OV2640_CONTROL_AUTO );
+        if ( nightMode )
+            ov2640_set_aec( &gs_handle, aecControl.aecValue );
+    }
     if ( newConfigProcessed )
         return;
     ov2640_set_offset_x( &gs_handle, offsetXY[ 0 ] );
     ov2640_set_offset_y( &gs_handle, offsetXY[ 1 ] & 0xFFF );
     if ( aec )
+    {
+        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
         ov2640_set_aec( &gs_handle, aec );
+    }
     newConfigProcessed = true;
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
@@ -705,51 +712,51 @@ void aecAutoControl()
     // else
     if ( nightMode )
     {
-        if ( avg > 6 )
+        if ( avg > 10 )
         {
-            nightMode              = false;
-            aecControl.stableCount = 0;
-        }
-        else
-        {
-            aecControl.aecValue = 400;
-            nightMode           = true;
+            nightMode = false;
+            // aecControl.stableCount = 0;
         }
     }
     else
     {
-        aecControl.stableCount = 0;
-
-        uint8_t target = ( aecControl.targetMin + aecControl.targetMax ) / 2;
-        int16_t error  = avg - target;
-
-        int16_t absError   = ( error < 0 ) ? -error : error;
-        int16_t scaledStep = ( absError * aecControl.stepSize ) / 5;
-
-        if ( scaledStep < aecControl.stepSize )
-            scaledStep = aecControl.stepSize;
-        if ( scaledStep > aecControl.stepSize * 5 )
-            scaledStep = aecControl.stepSize * 5;
-
-        int16_t adjustment = ( error < 0 ) ? scaledStep : -scaledStep;
-
-        int16_t newAec = aecControl.aecValue + adjustment;
-        if ( newAec < 1 )
-            newAec = 1;
-        if ( newAec > 500 )
+        if ( aecControl.aecValue > 400 )
         {
-            if ( avg < 10 && !nightMode )
-            {
-                nightMode = true;
-            }
-            else
-                newAec = 500;
+            nightMode           = true;
+            aecControl.aecValue = 400;
         }
+        // aecControl.stableCount = 0;
 
-        if ( newAec != aecControl.aecValue )
-        {
-            aecControl.aecValue = newAec;
-        }
+        // uint8_t target = ( aecControl.targetMin + aecControl.targetMax ) / 2;
+        // int16_t error  = avg - target;
+
+        // int16_t absError   = ( error < 0 ) ? -error : error;
+        // int16_t scaledStep = ( absError * aecControl.stepSize ) / 5;
+
+        // if ( scaledStep < aecControl.stepSize )
+        //     scaledStep = aecControl.stepSize;
+        // if ( scaledStep > aecControl.stepSize * 5 )
+        //     scaledStep = aecControl.stepSize * 5;
+
+        // int16_t adjustment = ( error < 0 ) ? scaledStep : -scaledStep;
+
+        // int16_t newAec = aecControl.aecValue + adjustment;
+        // if ( newAec < 1 )
+        //     newAec = 1;
+        // if ( newAec > 500 )
+        // {
+        //     if ( avg < 10 && !nightMode )
+        //     {
+        //         nightMode = true;
+        //     }
+        //     else
+        //         newAec = 500;
+        // }
+
+        // if ( newAec != aecControl.aecValue )
+        // {
+        //     aecControl.aecValue = newAec;
+        // }
     }
 }
 
