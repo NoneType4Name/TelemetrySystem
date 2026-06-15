@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dcmi.h"
 #include "usb_device.h"
 
@@ -666,11 +667,11 @@ void enableLed2ms()
 
 void updateTime()
 {
-    if ( ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
-                                                                          "Host: smartapp-code.sberdevices.ru\r\n"
-                                                                          "User-Agent: ESP8266\r\n"
-                                                                          "Accept: application/json\r\n"
-                                                                          "Connection: close\r\n" ) )
+    while ( !ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
+                                                                              "Host: smartapp-code.sberdevices.ru\r\n"
+                                                                              "User-Agent: ESP8266\r\n"
+                                                                              "Accept: application/json\r\n"
+                                                                              "Connection: close\r\n" ) )
     {
         auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
         if ( d )
