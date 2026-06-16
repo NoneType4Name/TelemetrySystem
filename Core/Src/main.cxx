@@ -491,15 +491,14 @@ bool inline testForBus()
     return dayTestForBus();
 }
 
-// bool inline getZoomed()
-// {
-//     return offsetWithZoom[ 1 ] & 1 << 15;
-// }
-
-// void inline setZoomed()
-// {
-//     offsetWithZoom[ 1 ] |= 1 << 15;
-// }
+void espRecoonect()
+{
+    while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
+    {
+        HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
+    }
+    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
+}
 
 bool inline getToggle()
 {
@@ -674,12 +673,17 @@ void enableLed2ms()
 
 void updateTime()
 {
-    while ( !ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
-                                                                              "Host: smartapp-code.sberdevices.ru\r\n"
-                                                                              "User-Agent: ESP8266\r\n"
-                                                                              "Accept: application/json\r\n"
-                                                                              "Connection: close\r\n" ) )
+    for ( uint8_t count { 0 }; !ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
+                                                                                                 "Host: smartapp-code.sberdevices.ru\r\n"
+                                                                                                 "User-Agent: ESP8266\r\n"
+                                                                                                 "Accept: application/json\r\n"
+                                                                                                 "Connection: close\r\n" );
+          ++count )
     {
+        if ( count > 3 )
+        {
+            espRecoonect();
+        }
         auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
         if ( d )
         {
@@ -691,6 +695,7 @@ void updateTime()
                 RTC_DateTypeDef cData { dayOfWeek, month, day, year };
                 HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
                 HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
+                timeToCalibrateRTC = false;
             }
         }
     }
@@ -838,11 +843,7 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
-    {
-        HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
-    }
-    HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
+    espRecoonect();
     updateTime();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -955,7 +956,6 @@ int main( void )
         if ( timeToCalibrateRTC )
         {
             updateTime();
-            timeToCalibrateRTC = false;
         }
         /* USER CODE END WHILE */
 
