@@ -61,7 +61,7 @@ void MainWindow::readSerialData()
         luminance = bytes[ endingPos - 1 ];
         aec       = *reinterpret_cast<uint16_t *>( &bytes[ endingPos - 3 ] );
         bytes.remove( endingPos - 3, bytes.size() - endingPos );
-        QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 128, 60, QImage::Format_RGB16 );
+        QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 200, 80, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
         bytes.clear();
     }

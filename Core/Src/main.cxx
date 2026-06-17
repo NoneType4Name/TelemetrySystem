@@ -143,7 +143,7 @@ static void MX_RTC_Init( void );
 
 void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
 {
-    // every day at 00:00
+    // every day at 03:00
     timeToCalibrateRTC = true;
 }
 
@@ -917,13 +917,16 @@ int main( void )
                     }
                     if ( debugCameraPattern )
                     {
-                        char name[ 25 ];
-                        uint32_t photoNum { IncrementLastPhotoNumber() };
-                        if ( photoNum )
+                        if ( !nightMode )
                         {
-                            sprintf( name, "0:/debug/d%d-%c-%d.bmp", ( int ) photoNum, nightMode ? 'n' : 'd', ( int ) avg );
-                            SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
-                            enableLed2ms();
+                            char name[ 25 ];
+                            uint32_t photoNum { IncrementLastPhotoNumber() };
+                            if ( photoNum )
+                            {
+                                sprintf( name, "0:/debug/d%d-%c-%d.bmp", ( int ) photoNum, nightMode ? 'n' : 'd', ( int ) avg );
+                                SaveImageBMP( name, reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ][ 4 ] ), WIDTH * HEIGHT * 2 );
+                                enableLed2ms();
+                            }
                         }
                         debugCameraPattern = false;
                     }
@@ -1171,7 +1174,7 @@ static void MX_RTC_Init( void )
 
     /** Enable the Alarm A
      */
-    sAlarm.AlarmTime.Hours          = 0;
+    sAlarm.AlarmTime.Hours          = 3;
     sAlarm.AlarmTime.Minutes        = 0;
     sAlarm.AlarmTime.Seconds        = 0;
     sAlarm.AlarmTime.SubSeconds     = 0;
