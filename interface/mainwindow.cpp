@@ -58,9 +58,24 @@ void MainWindow::readSerialData()
             return;
         bytes.remove( 0, 8 );
         endingPos -= 8;
-        luminance = bytes[ endingPos - 1 ];
-        aec       = *reinterpret_cast<uint16_t *>( &bytes[ endingPos - 3 ] );
-        bytes.remove( endingPos - 3, bytes.size() - endingPos );
+        luminance = bytes[ endingPos - 4 - 1 - 2 ];
+        aec       = *reinterpret_cast<uint16_t *>( &bytes[ endingPos - 4 - 1 ] );
+        auto p = *reinterpret_cast<uint32_t*>(&bytes[endingPos - 4 ]);
+        int seconds = (p>> 0) & 0x3F;   // 6 бит
+        int minutes = (p>> 6) & 0x3F;   // 6 бит
+        int hours   = (p>> 12) & 0x1F;  // 5 бит
+        int day     = (p>> 17) & 0x1F;  // 5 бит
+        int month   = (p>> 22) & 0x0F;  // 4 бита
+        int year    = (p>> 26) & 0x3F;  // 6 бит (0-99)
+
+        QString timeStr = QString("%1.%2.20%3 %4:%5:%6")
+                              .arg(day, 2, 10, QChar('0'))
+                              .arg(month, 2, 10, QChar('0'))
+                              .arg(year, 2, 10, QChar('0'))
+                              .arg(hours, 2, 10, QChar('0'))
+                              .arg(minutes, 2, 10, QChar('0'))
+                              .arg(seconds, 2, 10, QChar('0'));
+        bytes.remove( endingPos - 4- 1-2, bytes.size() - endingPos );
         QImage image( reinterpret_cast<uint8_t *>( bytes.data() ), 200, 80, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
         bytes.clear();

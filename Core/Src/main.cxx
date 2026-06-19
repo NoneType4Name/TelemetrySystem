@@ -84,7 +84,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -109,7 +109,7 @@ struct AecAutoControl
 {
     uint16_t targetMax     = 30;
     uint16_t targetMin     = 20;
-    uint16_t aecValue      = 400;
+    uint16_t aecValue      = 200;
     uint8_t stableCount    = 0;
     uint8_t requiredStable = 2;
     int16_t stepSize       = 1;
@@ -263,11 +263,31 @@ void getAverageLuminance()
     avg = ( uint8_t ) ( kalmanState.estimate + 0.5f );
 }
 
+uint32_t RTC_timestamp()
+{
+    RTC_TimeTypeDef sTime = { 0 };
+    RTC_DateTypeDef sDate = { 0 };
+
+    HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
+    HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
+
+    uint32_t packed = 0;
+
+    packed |= ( sTime.Seconds & 0x3F ) << 0;
+    packed |= ( sTime.Minutes & 0x3F ) << 6;
+    packed |= ( sTime.Hours & 0x1F ) << 12;
+    packed |= ( sDate.Date & 0x1F ) << 17;
+    packed |= ( sDate.Month & 0x0F ) << 22;
+    packed |= ( sDate.Year & 0x3F ) << 26;
+
+    return packed;
+}
+
 void CDC_TX_FRAME()
 {
     if ( hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED )
         return;
-    frameLen          = WIDTH * HEIGHT * 2 + 14;
+    frameLen          = WIDTH * HEIGHT * 2 + 18;
     curentFrameBuffer = reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] );
     auto p { curentFrameBuffer };
     p[ 0 ]                                       = 'b';
@@ -280,9 +300,10 @@ void CDC_TX_FRAME()
     p                                        = reinterpret_cast<uint8_t *>( &curentFrameBuffer[ WIDTH * HEIGHT * 2 + 8 ] );
     *reinterpret_cast<uint16_t *>( &p[ 0 ] ) = aec ? aec : aecControl.aecValue;
     p[ 2 ]                                   = avg;
-    p[ 3 ]                                   = 'e';
-    p[ 4 ]                                   = 'n';
-    p[ 5 ]                                   = 'd';
+    *reinterpret_cast<uint32_t *>( &p[ 3 ] ) = RTC_timestamp();
+    p[ 7 ]                                   = 'e';
+    p[ 8 ]                                   = 'n';
+    p[ 9 ]                                   = 'd';
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
@@ -491,7 +512,7 @@ bool inline testForBus()
     return dayTestForBus();
 }
 
-void espRecoonect()
+void espReconnect()
 {
     while ( !ESP8266_ConnectTo( ESP_SSID, ESP_SSID_PASSWORD ) )
     {
@@ -673,31 +694,36 @@ void enableLed2ms()
 
 void updateTime()
 {
-    for ( uint8_t count { 0 }; !ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
-                                                                                                 "Host: smartapp-code.sberdevices.ru\r\n"
-                                                                                                 "User-Agent: ESP8266\r\n"
-                                                                                                 "Accept: application/json\r\n"
-                                                                                                 "Connection: close\r\n" );
-          ++count )
+    while ( 1 )
     {
-        if ( count > 3 )
+        if ( ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
+                                                                              "Host: smartapp-code.sberdevices.ru\r\n"
+                                                                              "User-Agent: ESP8266\r\n"
+                                                                              "Accept: application/json\r\n"
+                                                                              "Connection: close\r\n" ) )
         {
-            espRecoonect();
-        }
-        auto d = strstr( strstr( ESP8266_GetResponse( 500 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
-        if ( d )
-        {
-            uint8_t day, month, year, hour, minute, second, dayOfWeek;
-
-            if ( sscanf( d, "{\"timezone\":\"Europe/Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"", ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour, ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek ) == 7 )
+            auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
+            if ( d )
             {
-                RTC_TimeTypeDef cTime { hour, minute, second };
-                RTC_DateTypeDef cData { dayOfWeek, month, day, year };
-                HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
-                HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
-                timeToCalibrateRTC = false;
+                uint8_t day, month, year, hour, minute, second, dayOfWeek;
+                auto s = sscanf( d, "{\"timezone\":\"Europe/Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"", ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour, ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek );
+                if ( s > 0 )
+                    __NOP();
+                if ( s == 7 )
+                {
+                    RTC_TimeTypeDef cTime { hour, minute, second };
+                    RTC_DateTypeDef cData { dayOfWeek, month, day, year };
+                    if ( hour )
+                        __NOP();
+                    HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
+                    HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
+                    timeToCalibrateRTC = false;
+                    return;
+                }
             }
         }
+        else
+            espReconnect();
     }
 }
 
@@ -725,10 +751,10 @@ void aecAutoControl()
     }
     else
     {
-        if ( aecControl.aecValue > 400 )
+        if ( aecControl.aecValue > 200 )
         {
             nightMode           = true;
-            aecControl.aecValue = 400;
+            aecControl.aecValue = 200;
         }
         // aecControl.stableCount = 0;
 
@@ -843,7 +869,7 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    espRecoonect();
+    espReconnect();
     updateTime();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -917,7 +943,7 @@ int main( void )
                     }
                     if ( debugCameraPattern )
                     {
-                        if ( !nightMode )
+                        if ( nightMode )
                         {
                             char name[ 25 ];
                             uint32_t photoNum { IncrementLastPhotoNumber() };

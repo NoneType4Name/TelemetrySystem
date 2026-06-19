@@ -56,6 +56,7 @@ bool ESP8266_DisconnectFromWifi()
 
 bool ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request )
 {
+    ESP8266_ClearRecvBuff();
     return ESP8266_AT_CIPSTART( type, ip, port ) && ESP8266_AT_CIPSEND( strlen( request ) + 2 ) && ESP8266_AT_SendData( request );
 }
 
@@ -148,7 +149,6 @@ char *ESP8266_GetResponse( uint32_t timeout )
     int bytesNeeded = 0;
     uint32_t time   = HAL_GetTick();
 
-    ESP8266_ClearRecvBuff();
     HAL_UART_Receive_IT( ESP8266_huart, ( uint8_t * ) &recvByte, ( uint16_t ) 1 );
 
     while ( HAL_GetTick() - time < timeout && ( bytesNeeded == 0 || ESP_RX_buff_index < bytesNeeded ) )
