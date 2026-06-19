@@ -171,6 +171,7 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
         if ( nightMode )
             ov2640_set_aec( &gs_handle, aecControl.aecValue );
     }
+    ov2640_get_aec( &gs_handle, &aecControl.aecValue );
     if ( newConfigProcessed )
         return;
     ov2640_set_offset_x( &gs_handle, offsetXY[ 0 ] );
@@ -471,9 +472,9 @@ bool nightTestForBus() // by lights pattern
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                if ( square > 80 )
+                if ( square > 20 )
                 {
-                    if ( square > 200 ) debugCameraPattern = true;
+                    if ( square > 40 ) debugCameraPattern = true;
                     if ( dh > 1 && dh < 9 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
@@ -484,20 +485,24 @@ bool nightTestForBus() // by lights pattern
                             for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                             {
                                 if ( GET_Y( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
+                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0x07e0;
                                 if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
+                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0x07e0;
                             }
 
                             for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                             {
                                 if ( GET_X( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0x07e0;
                                 if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
+                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0x07e0;
                             }
                         }
                     }
+                }
+                else
+                {
+                    debugCameraPattern = true;
                 }
             }
         }

@@ -232,16 +232,6 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="zoomedPushButton">
-          <property name="cursor">
-           <cursorShape>PointingHandCursor</cursorShape>
-          </property>
-          <property name="text">
-           <string>100x48</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QPushButton" name="shootButton">
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
@@ -322,6 +312,16 @@
          </widget>
         </item>
        </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="timeLabel">
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
       </item>
       <item>
        <spacer name="verticalSpacer_2">
