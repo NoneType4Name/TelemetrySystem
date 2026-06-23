@@ -38,7 +38,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <vector>
-// #include "TestImage.h"
+#include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -84,7 +84,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBufferss[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -308,21 +308,21 @@ void CDC_TX_FRAME()
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
-// bool inline isRed( uint16_t pixel ) // todo: wrong
-// {
-//     uint8_t r = RGB565_R( pixel );
-//     uint8_t g = RGB565_G( pixel );
-//     uint8_t b = RGB565_B( pixel );
+bool inline isRed( uint16_t pixel )
+{
+    uint8_t r = RGB565_R( pixel );
+    uint8_t g = RGB565_G( pixel ) >> 1;
+    uint8_t b = RGB565_B( pixel );
 
-//     return true && ( r > ( 80 * 31 / 255 ) ) && ( r > ( g >> 1 ) ) && ( ( int ) r - ( g >> 1 ) > ( 40 * 31 / 255 ) ) && ( r > b ) && ( ( int ) r - b > ( 40 * 31 / 255 ) ); // r >> g;b (d = 50/255) r > 100/255
-// }
+    return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
+}
 
 bool inline isYellow( uint16_t pixel )
 {
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel ) >> 1;
     uint8_t b = RGB565_B( pixel );
-    return ( abs( r - g ) < 6 && b < g && g - b > 3 );
+    return ( ( ( r > g && r - g < ( 50 * 31 / 255 ) ) || ( r <= g && g - r < 15 ) ) && b < ( r < g ? r : g ) && g - ( r < g ? r : g ) > ( 50 * 31 / 255 ) ); // r >> g || r < g (d:50 || 15), b < min(r, g) (d:50+)
 }
 
 bool inline isLight( uint16_t pixel )
@@ -332,7 +332,7 @@ bool inline isLight( uint16_t pixel )
     uint8_t b = RGB565_B( pixel );
     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
     uint8_t avg = ( r + b + g ) / 3;
-    return avg > 6 && pixel != 0xf800; // (r+g+b) / 3 > 20 (rgb565)
+    return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
 }
 
 bool isLightBlue( uint16_t pixel )
@@ -357,6 +357,9 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
     // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
 
     uint16_t filled { 1 };
+    bool red;
+    if ( nightMode )
+        red = isRed( frameBuffers[ 0 ][ leftUpPixelInd ] );
     uint8_t maxX = GET_X( leftUpPixelInd );
     uint8_t maxY = GET_Y( leftUpPixelInd );
     uint8_t minX = maxX;
@@ -385,7 +388,10 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
                 if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
                 {
                     uint16_t nidx = ny * WIDTH + nx;
-                    if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( isYellow( frameBuffers[ 0 ][ nidx ] ) || isLight( frameBuffers[ 0 ][ nidx ] ) ) : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
+                    if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( red ? ( isRed( frameBuffers[ 0 ][ nidx ] ) ) : ( isYellow( frameBuffers[ 0 ][ nidx ] )
+                                                                                                                            //  || isLight( frameBuffers[ 0 ][ nidx ] )
+                                                                                                                            ) )
+                                                                       : isLightBlue( frameBuffers[ 0 ][ nidx ] ) ) )
                     {
                         pixelVisited.set( nidx - 4 );
                         // frameBuffers[ 0 ][ nidx ] = 0x07e0;
@@ -460,59 +466,96 @@ bool nightTestForBus() // by lights pattern
 {
     pixelVisited.reset();
     uint8_t countLightsPattern { 0 };
+    uint8_t YellowX { 0 };
+    uint8_t YellowY { 0 };
+    uint8_t RedX { WIDTH };
+    uint8_t RedY { HEIGHT };
+    uint8_t redLigthCount { 0 };
+
     for ( uint16_t h { 0 }; h < HEIGHT; ++h )
     {
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = 4 + w + h * WIDTH;
-            if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( frameBuffers[ 0 ][ leftP ] ) || isLight( frameBuffers[ 0 ][ leftP ] ) ) )
+            bool red { isRed( frameBuffers[ 0 ][ leftP ] ) };
+            if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( frameBuffers[ 0 ][ leftP ] )
+                                                          // || isLight( frameBuffers[ 0 ][ leftP ] )
+                                                          || red ) )
             {
                 auto rightP     = fillColorPattern( leftP, 1 );
                 leftP           = rightP[ 0 ];
                 uint8_t dw      = GET_X( rightP[ 1 ] ) - GET_X( leftP );
                 uint8_t dh      = GET_Y( rightP[ 1 ] ) - GET_Y( leftP );
                 uint16_t square = dw * dh;
-                if ( square > 20 )
+                if ( red && square > 10 )
                 {
-                    if ( square > 40 ) debugCameraPattern = true;
-                    if ( dh > 1 && dh < 9 )
+                    ++redLigthCount;
+                    if ( GET_X( leftP ) < RedX && GET_Y( leftP ) < RedY )
                     {
-                        float d = ( ( float ) ( dw ) / dh );
-                        if ( d > 5.f )
-                        {
-                            if ( ++countLightsPattern > 1 )
-                                debugCameraPattern = true;
-                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
-                            {
-                                if ( GET_Y( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0x07e0;
-                                if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                                    frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0x07e0;
-                            }
-
-                            for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
-                            {
-                                if ( GET_X( leftP ) > 0 )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0x07e0;
-                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                                    frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0x07e0;
-                            }
-                        }
+                        RedX = GET_X( leftP );
+                        RedY = GET_Y( leftP );
                     }
+                    goto drawRect;
                 }
                 else
                 {
-                    debugCameraPattern = true;
+                    if ( square > 20 )
+                    {
+                        if ( square > 40 ) debugCameraPattern = true;
+                        if ( dh > 1 && dh < 9 )
+                        {
+                            float d = ( ( float ) ( dw ) / dh );
+                            if ( d > 5.f )
+                            {
+                                YellowX = GET_X( leftP );
+                                YellowY = GET_Y( leftP );
+                                if ( ++countLightsPattern > 1 )
+                                    debugCameraPattern = true;
+                                goto drawRect;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        debugCameraPattern = true;
+                    }
                 }
+                continue;
+            drawRect:
+            {
+                for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
+                {
+                    if ( GET_Y( leftP ) > 0 )
+                        frameBuffers[ 0 ][ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0x07e0;
+                    if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
+                        frameBuffers[ 0 ][ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0x07e0;
+                }
+
+                for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
+                {
+                    if ( GET_X( leftP ) > 0 )
+                        frameBuffers[ 0 ][ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0x07e0;
+                    if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
+                        frameBuffers[ 0 ][ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0x07e0;
+                }
+            }
             }
         }
     }
-    return countLightsPattern > 0;
+    if ( redLigthCount != 4 )
+        debugCameraPattern = true;
+    if ( YellowX > RedX && YellowX - RedX > 90 && YellowX - RedX < 110 ) // 90 < bus width < 110
+        return true;
+    else
+    {
+        debugCameraPattern = true;
+        return false;
+    }
 }
 
 bool inline testForBus()
 {
-    if ( nightMode )
+    if ( avg < 12 )
         return nightTestForBus();
     return dayTestForBus();
 }
@@ -758,7 +801,8 @@ void aecAutoControl()
     {
         if ( aecControl.aecValue > 200 )
         {
-            nightMode           = true;
+            if ( avg < 12 )
+                nightMode = true;
             aecControl.aecValue = 200;
         }
         // aecControl.stableCount = 0;
@@ -857,7 +901,7 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    // memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -883,7 +927,7 @@ int main( void )
     //                                                             "Accept: application/json\r\n"
     //                                                             "Connection: close\r\n" ) )
 
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBufferss[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
