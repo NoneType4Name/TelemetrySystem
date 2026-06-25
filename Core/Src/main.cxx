@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_gcc.h"
 #include "fatfs.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dcmi.h"
@@ -38,7 +39,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <vector>
-#include "TestImage.h"
+// #include "TestImage.h"
 extern "C"
 {
 #include "ESP8266.h"
@@ -84,7 +85,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint16_t frameBufferss[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
+uint16_t frameBuffers[ 1 ][ WIDTH * HEIGHT + 8 / sizeof( uint16_t ) + 2 + 1 + 2 ] __attribute__( ( section( ".RAM_D2" ) ) ) __attribute__( ( aligned( 32 ) ) );
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -122,6 +123,13 @@ struct KalmanFilterState
     float processNoise = 0.5f;
     float measureNoise = 4.0f;
 } kalmanState;
+
+typedef struct
+{
+    uint16_t h; // 0..359
+    uint8_t s;  // 0..63
+    uint8_t l;  // 0..63
+} HSL_t;
 
 FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
@@ -308,39 +316,104 @@ void CDC_TX_FRAME()
     CDC_Transmit_FS( curentFrameBuffer, 1u << 12u );
 }
 
+HSL_t inline rgbToHSL( uint16_t p )
+{
+    HSL_t result;
+    uint8_t r = RGB565_R( p ) << 1;
+    uint8_t g = RGB565_G( p );
+    uint8_t b = RGB565_B( p ) << 1; // 0-63
+
+    uint8_t min = r;
+    uint8_t max = r;
+
+    if ( g < min ) min = g;
+    if ( b < min ) min = b;
+    if ( g > max ) max = g;
+    if ( b > max ) max = b;
+
+    uint16_t delta = max - min;
+
+    result.l = ( max + min ) >> 1;
+
+    if ( max == 0 )
+    {
+        result.s = 0;
+    }
+    else
+    {
+        result.s = ( delta * 64 ) / ( 64 - abs( 2 * result.l - 64 ) );
+    }
+
+    if ( delta == 0 )
+    {
+        result.h = 0;
+    }
+    else
+    {
+        int16_t hue;
+
+        if ( max == r )
+        {
+            // H = 60 * ((g - b) / delta)
+            hue = ( 60 * ( g - b ) ) / delta;
+        }
+        else if ( max == g )
+        {
+            // H = 60 * ((b - r) / delta + 2)
+            hue = ( 60 * ( b - r ) ) / delta + 120;
+        }
+        else
+        {
+            // H = 60 * ((r - g) / delta + 4)
+            hue = ( 60 * ( r - g ) ) / delta + 240;
+        }
+
+        if ( hue < 0 ) hue += 360;
+
+        result.h = ( uint16_t ) ( hue % 360 );
+    }
+
+    return result;
+}
+
 bool inline isRed( uint16_t pixel )
 {
-    uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel ) >> 1;
-    uint8_t b = RGB565_B( pixel );
-
-    return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
+    auto hsl { rgbToHSL( pixel ) };
+    return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
+    // uint8_t r = RGB565_R( pixel );
+    // uint8_t g = RGB565_G( pixel ) >> 1;
+    // uint8_t b = RGB565_B( pixel );
+    // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
 }
 
 bool inline isYellow( uint16_t pixel )
 {
-    uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel ) >> 1;
-    uint8_t b = RGB565_B( pixel );
-    return ( ( ( r > g && r - g < ( 50 * 31 / 255 ) ) || ( r <= g && g - r < 15 ) ) && b < ( r < g ? r : g ) && g - ( r < g ? r : g ) > ( 50 * 31 / 255 ) ); // r >> g || r < g (d:50 || 15), b < min(r, g) (d:50+)
+    auto hsl { rgbToHSL( pixel ) };
+    return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
+    // uint8_t r = RGB565_R( pixel );
+    // uint8_t g = RGB565_G( pixel ) >> 1;
+    // uint8_t b = RGB565_B( pixel );
+    // return ( ( ( r > g && r - g < ( 50 * 31 / 255 ) ) || ( r <= g && g - r < 15 ) ) && b < ( r < g ? r : g ) && g - ( r < g ? r : g ) > ( 50 * 31 / 255 ) ); // r >> g || r < g (d:50 || 15), b < min(r, g) (d:50+)
 }
 
-bool inline isLight( uint16_t pixel )
-{
-    uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel ) >> 1;
-    uint8_t b = RGB565_B( pixel );
-    // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
-    uint8_t avg = ( r + b + g ) / 3;
-    return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
-}
+// bool inline isLight( uint16_t pixel )
+// {
+//     uint8_t r = RGB565_R( pixel );
+//     uint8_t g = RGB565_G( pixel ) >> 1;
+//     uint8_t b = RGB565_B( pixel );
+//     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
+//     uint8_t avg = ( r + b + g ) / 3;
+//     return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
+// }
 
 bool isLightBlue( uint16_t pixel )
 {
-    uint8_t r = RGB565_R( pixel );
-    uint8_t g = RGB565_G( pixel );
-    uint8_t b = RGB565_B( pixel );
-    return true && ( b > ( 80 * 31 / 255 ) ) && ( b > ( g >> 1 ) ) && ( ( int ) b - ( g >> 1 ) < ( 58 * 31 / 255 ) ) && ( ( int ) b - ( g >> 1 ) > 0 ) && ( ( g >> 1 ) > r ) && ( ( int ) ( g >> 1 ) - r > 0 ) && ( ( int ) ( g >> 1 ) - r < ( 66 * 31 / 255 ) ); // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
+    auto hsl { rgbToHSL( pixel ) };
+    return ( ( hsl.h > 170 ) && ( hsl.h < 220 ) ) && ( hsl.s > ( uint8_t ) ( .04f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .25f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .95f * 63 ) ) );
+    // uint8_t r = RGB565_R( pixel );
+    // uint8_t g = RGB565_G( pixel ) >> 1;
+    // uint8_t b = RGB565_B( pixel );
+    // return true && ( b > ( 80 * 31 / 255 ) ) && ( b >= g ) && ( ( int ) b - g < ( 58 * 31 / 255 ) ) && ( b > r ) && ( ( int ) g - r < ( 32 * 31 / 255 ) ); // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
 }
 
 bool inline isGrey( uint16_t pixel )
@@ -375,15 +448,15 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
         int16_t x = GET_X( idx );
         int16_t y = GET_Y( idx );
 
-        for ( int8_t dy = -2; dy <= 2; dy++ )
+        for ( int8_t dy = -3; dy <= 3; dy++ )
         {
-            for ( int8_t dx = -2; dx <= 2; dx++ )
+            for ( int8_t dx = -3; dx <= 3; dx++ )
             {
                 if ( dx == 0 && dy == 0 ) continue;
 
                 int16_t nx = x + dx;
                 int16_t ny = y + dy;
-                if ( nx < 4 || ny < 0 ) continue;
+                // if ( nx < 4 || ny < 0 ) continue;
 
                 if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
                 {
@@ -433,7 +506,7 @@ bool inline dayTestForBus()
                     if ( dh > 12 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( ( square > 3000 && ( d > 2.f && d < 3.f ) ) || ( d > 4.f && d < 6.5f ) ) // (square > 3000 -> ratio in range 2-3 - bus | 1000 < square < 3000 -> ratio ~ 4-6.5f - roof of bus) #experemental
+                        if ( ( square > 3000 && ( d > 2.f && d < 4.f ) ) || ( d > 4.f && d < 8.5f ) ) // (square > 3000 -> ratio in range 2-3 - bus | 1000 < square < 3000 -> ratio ~ 4-6.5f - roof of bus) #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
                                 debugCameraPattern = true;
@@ -499,13 +572,13 @@ bool nightTestForBus() // by lights pattern
                 }
                 else
                 {
-                    if ( square > 20 )
+                    if ( square > 5 )
                     {
                         if ( square > 40 ) debugCameraPattern = true;
-                        if ( dh > 1 && dh < 9 )
+                        if ( dh < 4 )
                         {
                             float d = ( ( float ) ( dw ) / dh );
-                            if ( d > 5.f )
+                            if ( d > 7.f && d < 20.f )
                             {
                                 YellowX = GET_X( leftP );
                                 YellowY = GET_Y( leftP );
@@ -513,6 +586,10 @@ bool nightTestForBus() // by lights pattern
                                     debugCameraPattern = true;
                                 goto drawRect;
                             }
+                        }
+                        else
+                        {
+                            debugCameraPattern = true;
                         }
                     }
                     else
@@ -901,7 +978,7 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    // memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
+    memset( &frameBuffers, 0, ( WIDTH * HEIGHT + 6 ) * sizeof( uint16_t ) );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -927,7 +1004,7 @@ int main( void )
     //                                                             "Accept: application/json\r\n"
     //                                                             "Connection: close\r\n" ) )
 
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBufferss[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( ( reinterpret_cast<uint8_t *>( &frameBuffers[ 0 ] ) + 8 ) ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
