@@ -873,14 +873,20 @@ void aecAutoControl()
             nightMode = false;
             // aecControl.stableCount = 0;
         }
+        else if ( aecControl.aecValue != 200 )
+        {
+            aecControl.aecValue = 200;
+        }
     }
     else
     {
         if ( aecControl.aecValue > 200 )
         {
             if ( avg < 12 )
-                nightMode = true;
-            aecControl.aecValue = 200;
+            {
+                nightMode           = true;
+                aecControl.aecValue = 200;
+            }
         }
         // aecControl.stableCount = 0;
 
