@@ -621,13 +621,25 @@ bool nightTestForBus() // by lights pattern
     }
     if ( redLigthCount != 4 )
         debugCameraPattern = true;
-    if ( YellowX > RedX && YellowX - RedX > 90 && YellowX - RedX < 110 ) // 90 < bus width < 110
-        return true;
-    else
+    if ( countLightsPattern )
     {
-        debugCameraPattern = true;
-        return false;
+        if ( YellowX > RedX && YellowX - RedX > 90 && YellowX - RedX < 110 ) // 90 < bus width < 110
+            return true;
+        else if ( redLigthCount > 1 )
+        {
+            return true;
+            debugCameraPattern = true;
+            return false;
+        }
+        else
+        {
+            debugCameraPattern = true;
+            return false;
+        }
     }
+    else
+        debugCameraPattern = true;
+    return false;
 }
 
 bool inline testForBus()
@@ -821,11 +833,11 @@ void updateTime()
 {
     while ( 1 )
     {
-        if ( ESP8266_SendRequest( "SSL", "smartapp-code.sberdevices.ru", 443, "GET /tools/api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
-                                                                              "Host: smartapp-code.sberdevices.ru\r\n"
-                                                                              "User-Agent: ESP8266\r\n"
-                                                                              "Accept: application/json\r\n"
-                                                                              "Connection: close\r\n" ) )
+        if ( ESP8266_SendRequest( "SSL", "tools.aimylogic.com", 443, "GET /api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
+                                                                     "Host: tools.aimylogic.com\r\n"
+                                                                     "User-Agent: ESP8266\r\n"
+                                                                     "Accept: application/json\r\n"
+                                                                     "Connection: close\r\n" ) )
         {
             auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
             if ( d )
@@ -990,6 +1002,32 @@ int main( void )
     ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
+
+    // ESP8266_Send( "AT+FS=OPEN,\"/ca.pem\",\"w\"\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( R"(AT+CIPSEND=512\r\n-----BEGIN CERTIFICATE-----\nMIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx\nPzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu\nZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg\nQ0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS\nVTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg\nYW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v\ndCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n\nqqE0Zp52selXsKGFYoG0G)" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( R"(AT+CIPSEND=512\r\nM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q\nXBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U\nzn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX\nYwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y\nBer/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD\nU+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD\n4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9\nG8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH\nBLa52)" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( R"(AT+CIPSEND=512\r\n/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX\nePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa\nOiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf\nBKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS\nBgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF\nAAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH\ntmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq\nW9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMR)" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( R"(AT+CIPSEND=512\r\nl1JbW2bM+\n/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS\nAQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj\nC/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV\n4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d\nWN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ\nD9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC\nEYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq\n391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4G)" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( R"(AT+CIPSEND=42\r\nO0YSNuczzEm4=\n-----END CERTIFICATE-----\n)" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( "AT+CIPSSLCERT=0,\"/ca.pem\"\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( "AT+CIPSSLCERTSAVE" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
+    // ESP8266_Send( "AT+CIPSSLCCONF=0\r\n" );
 
     ESP8266_Send( "AT+CIPMUX=1\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
