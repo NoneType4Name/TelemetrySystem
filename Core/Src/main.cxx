@@ -458,7 +458,7 @@ std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool n
                 int16_t ny = y + dy;
                 // if ( nx < 4 || ny < 0 ) continue;
 
-                if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
+                if ( nx >= 4 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
                 {
                     uint16_t nidx = ny * WIDTH + nx;
                     if ( !pixelVisited.test( nidx - 4 ) && ( nightMode ? ( red ? ( isRed( frameBuffers[ 0 ][ nidx ] ) ) : ( isYellow( frameBuffers[ 0 ][ nidx ] )
@@ -885,14 +885,20 @@ void aecAutoControl()
             nightMode = false;
             // aecControl.stableCount = 0;
         }
+        else if ( aecControl.aecValue != 200 )
+        {
+            aecControl.aecValue = 200;
+        }
     }
     else
     {
         if ( aecControl.aecValue > 200 )
         {
             if ( avg < 12 )
-                nightMode = true;
-            aecControl.aecValue = 200;
+            {
+                nightMode           = true;
+                aecControl.aecValue = 200;
+            }
         }
         // aecControl.stableCount = 0;
 
