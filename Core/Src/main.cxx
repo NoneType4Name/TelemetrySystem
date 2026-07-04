@@ -106,6 +106,31 @@ uint16_t aec;
 uint16_t offsetXY[ 2 ] { 0, 0 };
 FATFS FatFs;
 
+struct MonitorData_T
+{
+    uint16_t x;
+    uint16_t y;
+    uint8_t avgLuminance;
+    uint8_t aec;
+    uint16_t inline getY()
+    {
+        return y & 0xFFF;
+    }
+    void inline setY( uint16_t &value )
+    {
+        y = ( y & ~0xFFF ) | ( ( value ) & 0xFFF );
+    }
+    bool inline getToggle()
+    {
+        return offsetXY[ 1 ] & 1 << 14;
+    }
+
+    void inline ReSetToggle()
+    {
+        offsetXY[ 1 ] ^= ( 1 << 14 );
+    }
+};
+
 struct AecAutoControl
 {
     uint16_t targetMax     = 30;
@@ -656,16 +681,6 @@ void espReconnect()
         HAL_GPIO_TogglePin( LED_GPIO_Port, LED_Pin );
     }
     HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET );
-}
-
-bool inline getToggle()
-{
-    return offsetXY[ 1 ] & 1 << 14;
-}
-
-void inline ReSetToggle()
-{
-    offsetXY[ 1 ] ^= ( 1 << 14 );
 }
 
 void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
