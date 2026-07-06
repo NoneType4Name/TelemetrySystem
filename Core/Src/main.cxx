@@ -103,7 +103,6 @@ uint8_t *curentFrameBuffer { 0 };
 struct states_T
 {
     uint16_t newDataRx : 1 { 0 };
-    uint16_t newTxExpected : 1 { 0 };
     uint16_t cameraCountdown : 1 { 0 };
     uint16_t sdCardPresented : 1 { 0 };
     uint16_t sdCardMounted : 1 { 0 };
@@ -122,37 +121,37 @@ void setNewRxDataFlag()
 
 enum RxCommand : uint16_t // for 3 bits Rx command
 {
-    noCommand  = 0,
     newXoffset = 1,
     newYoffset = 2,
     newAec     = 3,
     takeShoot  = 4,
     aimingMode = 5,
+    noCommand  = 6
 };
 
 struct TxData_T
 {
   private:
-    uint8_t begin[ 3 ] = { 'b', 'g', 'n' };
+    uint8_t begin[ 4 ] = { 'b', 'g', 'n', '\0' };
 
   public:
-    uint16_t frame[ WIDTH * HEIGHT ];
-    uint16_t x : 8;
-    uint16_t cameraEnable : 1;
-    uint16_t y : 7;
-    uint8_t avgLuminance;
-    uint8_t aec;
-    uint32_t time;
+    uint16_t frame[ WIDTH * HEIGHT ] {};
+    uint16_t x : 8 { 0 };
+    uint16_t cameraEnable : 1 { 0 };
+    uint16_t y : 7 { 0 };
+    uint8_t avgLuminance { 0 };
+    uint8_t aec { 0 };
+    uint32_t time { 0 };
 
   private:
-    uint8_t end[ 3 ] = { 'e', 'n', 'd' };
+    uint8_t end[ 4 ] = { 'e', 'n', 'd', '\0' };
 } TxData __attribute__( ( section( ".RAM_D2" ) ) );
 
 struct RxData_T
 {
-    uint16_t cameraEnabled : 1;
-    RxCommand command : 3;
-    uint16_t additionalData : 12;
+    uint16_t cameraEnabled : 1 { 0 };
+    RxCommand command : 3 { 0 };
+    uint16_t additionalData : 12 { 0 };
 };
 
 struct AecAutoControl
@@ -344,12 +343,11 @@ uint32_t RTC_timestamp()
 void CDC_TX_FRAME()
 {
     dataLen           = sizeof( TxData );
-    curentFrameBuffer = reinterpret_cast<uint8_t *>( &TxData.frame );
+    curentFrameBuffer = reinterpret_cast<uint8_t *>( &TxData );
     if ( !TxData.aec )
         TxData.aec = aecControl.aecValue;
     TxData.time = RTC_timestamp();
-    CDC_Transmit_FS( reinterpret_cast<uint8_t *>( &TxData.frame ), 1u << 12u );
-    states.newTxExpected = false;
+    CDC_Transmit_FS( reinterpret_cast<uint8_t *>( &TxData ), 1u << 12u );
 }
 
 HSL_t inline rgbToHSL( uint16_t p )
@@ -979,7 +977,6 @@ int main( void )
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
-    memset( &TxData, 0, sizeof( TxData ) );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -1072,7 +1069,6 @@ int main( void )
                     }
                     break;
             }
-            states.newDataRx = 0;
         }
         if ( states.newFrame )
         {
@@ -1114,8 +1110,11 @@ int main( void )
             DCMI->CR |= DCMI_CR_CAPTURE;
             getAverageLuminance();
             aecAutoControl();
-            if ( states.newTxExpected )
+            if ( states.newDataRx )
+            {
                 CDC_TX_FRAME();
+                states.newDataRx = 0;
+            }
         }
         if ( states.sdCardPresented && !states.sdCardMounted )
         {

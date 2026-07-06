@@ -7,29 +7,29 @@
 struct RxData_T
 {
   private:
-    uint8_t begin[ 3 ] = { 'b', 'g', 'n' };
+    uint8_t begin[ 4 ] = { 'b', 'g', 'n', '\0' };
 
   public:
-    uint16_t frame[ WIDTH * HEIGHT ];
-    uint16_t x : 8;
-    uint16_t cameraEnable : 1;
-    uint16_t y : 7;
-    uint8_t avgLuminance;
-    uint8_t aec;
-    uint32_t time;
+    uint16_t frame[ WIDTH * HEIGHT ] {};
+    uint16_t x : 8 { 0 };
+    uint16_t cameraEnable : 1 { 0 };
+    uint16_t y : 7 { 0 };
+    uint8_t avgLuminance { 0 };
+    uint8_t aec { 0 };
+    uint32_t time { 0 };
 
   private:
-    uint8_t end[ 3 ] = { 'e', 'n', 'd' };
+    uint8_t end[ 4 ] = { 'e', 'n', 'd', '\0' };
 };
 
 enum TxCommand : uint16_t
 {
-    noCommand  = 0,
     newXoffset = 1,
     newYoffset = 2,
     newAec     = 3,
     takeShoot  = 4,
     aimingMode = 5,
+    noCommand  = 6
 };
 
 struct TxData_T

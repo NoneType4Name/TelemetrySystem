@@ -26,12 +26,18 @@ void MainWindow::handleScan()
         {
             if ( timer )
             {
+                timer->stop();
                 delete timer;
                 timer = 0;
             }
             serial->setPort( p );
             serial->setBaudRate( QSerialPort::Baud115200 );
             serial->open( QIODevice::ReadWrite );
+            timer                 = new QTimer( this );
+            txData.additionalData = 1;
+            connect( timer, &QTimer::timeout, this, [ & ]()
+                     { serial->write( QByteArray( reinterpret_cast<uint8_t *>( &txData ) ) ); } );
+            timer->start( 100 );
             break;
         }
     }
@@ -39,6 +45,12 @@ void MainWindow::handleScan()
 
 void MainWindow::readSerialData()
 {
+    if ( timer )
+    {
+        timer->stop();
+        delete timer;
+        timer = 0;
+    }
     auto rD { serial->readAll() };
     if ( bytes.isEmpty() && rD.indexOf( "bgn" ) != 0 )
         return;
@@ -87,6 +99,7 @@ void MainWindow::readSerialData()
         QImage image( reinterpret_cast<const uint8_t *>( rxData->frame ), WIDTH, HEIGHT, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
         bytes.clear();
+        serial->write( QByteArray( reinterpret_cast<uint8_t *>( &txData ) ) );
     }
 }
 
