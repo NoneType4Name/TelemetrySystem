@@ -1,0 +1,38 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "name": "Launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "cwd": "${command:cmake.getLaunchTargetDirectory}",
+            "console": "internalConsole",
+            "initCommands": [
+                "command script import ${workspaceFolder}/debugger/register.py",
+            ]
+        }
+        // {
+        //     "name": "LLDB Debug",
+        //     "type": "cppdbg",
+        //     "request": "launch",
+        //     "program": "${command:cmake.launchTargetPath}",
+        //     "args": [],
+        //     "stopAtEntry": false,
+        //     "cwd": "${command:cmake.getLaunchTargetDirectory}",
+        //     "environment": [
+        //         {
+        //             "name": "PATH",
+        //             "value": "D:/main/exe/Qt/Tools/QtCreator/bin/clang/bin/;${env:PATH}"
+        //         }
+        //     ],
+        //     "externalConsole": false,
+        //     "MIMode": "lldb",
+        //     "miDebuggerPath": "D:/main/exe/Qt/Tools/QtCreator/bin/clang/bin/lldb.exe"
+        // }
+    ]
+}

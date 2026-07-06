@@ -1,6 +1,6 @@
 {
     "clangd.arguments": [
         "--compile-commands-dir=./build/",
-        // "-header-insertion=never"
-    ]
+    ],
+    "lldb-dap.executable-path": "D:/main/exe/Qt/Tools/Qt Creator 18.0.0-beta1/bin/clang/bin/lldb-dap.exe"
 }

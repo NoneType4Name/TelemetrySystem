@@ -7,6 +7,9 @@
 #include <QSerialPortInfo>
 #include <QPair>
 
+#define WIDTH  200
+#define HEIGHT 80
+
 QT_BEGIN_NAMESPACE
 namespace Ui
 {
