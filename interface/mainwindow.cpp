@@ -1,5 +1,4 @@
 #include "mainwindow.h"
-#include "DataTypes.h"
 #include "./ui_mainwindow.h"
 #include <QPixmap>
 #include <qlogging.h>
@@ -58,8 +57,6 @@ void MainWindow::readSerialData()
         if ( endingPos == -1 )
             return;
         const auto *rxData = reinterpret_cast<RxData_T *>( bytes.data() );
-        aec                = rxData->aec;
-        luminance          = rxData->avgLuminance;
         auto p             = rxData->time;
         int seconds        = ( p >> 0 ) & 0x3F;
         int minutes        = ( p >> 6 ) & 0x3F;
@@ -76,6 +73,17 @@ void MainWindow::readSerialData()
                               .arg( minutes, 2, 10, QChar( '0' ) )
                               .arg( seconds, 2, 10, QChar( '0' ) );
         ui->timeLabel->setText( timeStr );
+
+        if ( !ui->xOffsetLineEdit->hasFocus() )
+            ui->xOffsetLineEdit->setText( QString::number( rxData->x ) );
+
+        if ( !ui->yOffsetLineEdit->hasFocus() )
+            ui->yOffsetLineEdit->setText( QString::number( rxData->y ) );
+
+        if ( !ui->aecLineEdit->hasFocus() )
+            ui->aecLineEdit->setText( QString::number( rxData->aec ) );
+
+        ui->avgLabel->setText( QString::number( rxData->avgLuminance ) );
         QImage image( reinterpret_cast<const uint8_t *>( rxData->frame ), WIDTH, HEIGHT, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
         bytes.clear();
@@ -111,108 +119,102 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_upPushButton_clicked()
 {
-    zoomed = 1;
-    if ( offset.second > 10 )
+    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    if ( y > 10 )
+        y -= 10;
+    else
     {
-        offset.second -= 10;
-        char data[ 3 ] { 'y', 0, 0 };
-        ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.second;
-
-        serial->write( data, 3 );
+        if ( y == 0 )
+            return;
+        y = 0;
     }
+    txData.command        = TxCommand::newYoffset;
+    txData.additionalData = y;
 }
 
 void MainWindow::on_downPushButton_clicked()
 {
-    zoomed = 1;
-    if ( offset.second < 1200 - 76 - 10 )
+    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    if ( y < HEIGHT - 10 )
+        y += 10;
+    else
     {
-        offset.second += 10;
-        char data[ 3 ] { 'y', 0, 0 };
-        ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.second;
-
-        serial->write( data, 3 );
+        if ( y == HEIGHT )
+            return;
+        y = HEIGHT;
     }
+    txData.command        = TxCommand::newYoffset;
+    txData.additionalData = y;
 }
 
 void MainWindow::on_leftPushButton_clicked()
 {
-    zoomed = 1;
-    if ( offset.first > 10 )
+    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    if ( x > 10 )
+        x -= 10;
+    else
     {
-        offset.first -= 10;
-        char data[ 3 ] { 'x', 0, 0 };
-        ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.first;
-
-        serial->write( data, 3 );
+        if ( x == 0 )
+            return;
+        x = 0;
     }
+    txData.command        = TxCommand::newXoffset;
+    txData.additionalData = x;
 }
 
 void MainWindow::on_rightPushButton_clicked()
 {
-    zoomed = 1;
-    if ( offset.first < 1600 - 120 - 10 )
+    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    if ( x < WIDTH - 10 )
+        x += 10;
+    else
     {
-        offset.first += 10;
-        char data[ 3 ] { 'x', 0, 0 };
-        ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.first;
-
-        serial->write( data, 3 );
+        if ( x == WIDTH )
+            return;
+        x = WIDTH;
     }
+    txData.command        = TxCommand::newXoffset;
+    txData.additionalData = x;
 }
-
-// void MainWindow::on_zoomedPushButton_clicked()
-// {
-//     zoomed = 0;
-//     serial->write( "f" );
-//     offset.first  = 0;
-//     offset.second = 0;
-//     updateOffsetLineEdits();
-// }
 
 void MainWindow::on_xOffsetLineEdit_editingFinished()
 {
-    offset.first = ui->xOffsetLineEdit->text().toUInt();
-    char data[ 3 ] { 'x', 0, 0 };
-    ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.first;
-
-    serial->write( data, 3 );
+    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    txData.command = TxCommand::newXoffset;
+    if ( x > WIDTH )
+        x = WIDTH;
+    else if ( x < 0 )
+        x = 0;
+    txData.additionalData = x;
 }
 
 void MainWindow::on_yOffsetLineEdit_editingFinished()
 {
-    offset.second = ui->yOffsetLineEdit->text().toUInt();
-    char data[ 3 ] { 'y', 0, 0 };
-    ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = offset.second;
-
-    serial->write( data, 3 );
-}
-
-void MainWindow::updateProperties()
-{
-    if ( !ui->xOffsetLineEdit->hasFocus() )
-        ui->xOffsetLineEdit->setText( QString::number( offset.first ) );
-    if ( !ui->yOffsetLineEdit->hasFocus() )
-        ui->yOffsetLineEdit->setText( QString::number( offset.second ) );
-    if ( !ui->aecLineEdit->hasFocus() )
-        ui->aecLineEdit->setText( QString::number( aec ) );
-    ui->avgLabel->setText( QString::number( luminance ) );
+    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    txData.command = TxCommand::newYoffset;
+    if ( y > HEIGHT )
+        y = HEIGHT;
+    else if ( y < 0 )
+        y = 0;
+    txData.additionalData = y;
 }
 
 void MainWindow::on_shootButton_clicked()
 {
-    serial->write( "s" );
+    txData.command        = TxCommand::takeShoot;
+    txData.additionalData = 0;
 }
 
 void MainWindow::on_cameraCheckBox_clicked()
 {
-    serial->write( "t" );
+    txData.command        = TxCommand::aimingMode;
+    txData.cameraEnabled  = ui->cameraCheckBox->isChecked();
+    txData.additionalData = 0;
 }
 
 void MainWindow::on_aecLineEdit_editingFinished()
 {
-    aec = ui->aecLineEdit->text().toUInt();
-    char data[ 3 ] { 'e', 0, 0 };
-    ( *reinterpret_cast<uint16_t *>( &data[ 1 ] ) ) = aec;
-    serial->write( data, 3 );
+    uint16_t aec          = ui->aecLineEdit->text().toUInt();
+    txData.command        = TxCommand::newAec;
+    txData.additionalData = aec;
 }

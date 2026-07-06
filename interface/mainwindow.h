@@ -6,9 +6,7 @@
 #include <QSerialPort>
 #include <QSerialPortInfo>
 #include <QPair>
-
-#define WIDTH  200
-#define HEIGHT 80
+#include "DataTypes.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -49,11 +47,7 @@ class MainWindow : public QMainWindow
     void on_aecLineEdit_editingFinished();
 
   private:
-    void updateProperties();
-    QPair<uint16_t, uint16_t> offset { 0, 0 };
-    uint16_t aec { 0 };
-    uint8_t luminance { 0 };
-    bool zoomed { 0 };
+    TxData_T txData {};
     QByteArray bytes {};
     QTimer *timer {};
     QSerialPort *serial;

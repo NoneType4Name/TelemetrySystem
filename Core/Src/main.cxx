@@ -120,7 +120,7 @@ void setNewRxDataFlag()
     states.newDataRx = 1;
 }
 
-enum RxCommand : uint8_t
+enum RxCommand : uint16_t // for 3 bits Rx command
 {
     noCommand  = 0,
     newXoffset = 1,
@@ -130,7 +130,6 @@ enum RxCommand : uint8_t
     aimingMode = 5,
 };
 
-// #pragma pack( push, 2 )
 struct TxData_T
 {
   private:
@@ -138,9 +137,9 @@ struct TxData_T
 
   public:
     uint16_t frame[ WIDTH * HEIGHT ];
+    uint16_t x : 8;
     uint16_t cameraEnable : 1;
-    uint32_t x : 8;
-    uint32_t y : 7;
+    uint16_t y : 7;
     uint8_t avgLuminance;
     uint8_t aec;
     uint32_t time;
@@ -151,12 +150,10 @@ struct TxData_T
 
 struct RxData_T
 {
-    uint8_t cameraEnabled : 1;
+    uint16_t cameraEnabled : 1;
     RxCommand command : 3;
     uint16_t additionalData : 12;
 };
-
-// #pragma pack( pop )
 
 struct AecAutoControl
 {
