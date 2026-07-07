@@ -18,10 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_gcc.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal.h"
-#include "stm32h7xx_hal_dcmi.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -111,7 +108,7 @@ struct states_T
     uint16_t needCalibrateRTC : 1 { 0 };
     uint16_t nightMode : 1 { 0 };
     uint16_t cameraDebugPattern : 1 { 0 };
-} states __ALIGNED( 16 );
+} states;
 FATFS FatFs;
 
 void setNewRxDataFlag()
@@ -129,22 +126,31 @@ enum RxCommand : uint16_t // for 3 bits Rx command
     noCommand  = 6
 };
 
+__attribute__( ( constructor( 101 ) ) ) void ENABLE_RCC_D2_CLK( void )
+{
+    __HAL_RCC_D2SRAM1_CLK_ENABLE();
+    __HAL_RCC_D2SRAM2_CLK_ENABLE();
+    __HAL_RCC_D2SRAM3_CLK_ENABLE();
+}
+
 struct TxData_T
 {
   private:
-    uint8_t begin[ 4 ] = { 'b', 'g', 'n', '\0' };
+    uint8_t begin[ 3 ] { 'b', 'g', 'n' };
 
   public:
+    uint8_t x { 0 };
     uint16_t frame[ WIDTH * HEIGHT ] {};
-    uint16_t x : 8 { 0 };
-    uint16_t cameraEnable : 1 { 0 };
-    uint16_t y : 7 { 0 };
-    uint8_t avgLuminance { 0 };
-    uint8_t aec { 0 };
     uint32_t time { 0 };
+    uint16_t avgLuminance { 0 };
+
+    uint8_t aec { 0 };
+    uint8_t y : 7 { 0 };
+    uint8_t cameraEnable : 1 { 0 };
+    TxData_T() __attribute__( ( constructor( 102 ) ) ) {};
 
   private:
-    uint8_t end[ 4 ] = { 'e', 'n', 'd', '\0' };
+    uint8_t end[ 4 ] { 'e', 'n', 'd' };
 } TxData __attribute__( ( section( ".RAM_D2" ) ) );
 
 struct RxData_T
@@ -730,7 +736,7 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
 #pragma pack( pop )
     BMPFileHeader = {
         .file_type   = 0x4D42,
-        .file_size   = sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 + data_size,
+        .file_size   = static_cast<uint32_t>( sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 + data_size ),
         .reserved1   = 0,
         .reserved2   = 0,
         .offset_data = sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 };
@@ -948,7 +954,8 @@ int main( void )
     SystemClock_Config();
 
     /* USER CODE BEGIN SysInit */
-
+    // __HAL_RCC_D2SRAM1_CLK_ENABLE();
+    // TxData_T _tData;
     /* USER CODE END SysInit */
 
     /* Initialize all configured peripherals */
