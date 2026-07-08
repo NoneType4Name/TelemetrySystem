@@ -47,7 +47,7 @@ class MainWindow : public QMainWindow
     void on_aecLineEdit_editingFinished();
 
   private:
-    TxData_T txData {};
+    TxData_T txData { .command = noCommand };
     QByteArray bytes {};
     QTimer *timer {};
     QSerialPort *serial;

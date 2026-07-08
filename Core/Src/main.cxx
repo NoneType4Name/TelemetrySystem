@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -87,19 +88,13 @@ extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
 extern uint8_t UserTxBufferFS[ APP_TX_DATA_SIZE ];
 extern USBD_HandleTypeDef hUsbDeviceFS;
 size_t dataLen { 0 };
+uint32_t avgSum { 0 };
 uint8_t *curentFrameBuffer { 0 };
-// bool CDC_RxStatus { 0 };
-// bool CameraCountDownEnded { 1 };
-// bool sdCardPresented { 0 };
-// bool sdCardMounted { 0 };
-// bool newFrame { 0 };
-// bool newConfigProcessed { 1 };
-// bool timeToCalibrateRTC { 0 };
-// bool nightMode { 0 };
-// bool debugCameraPattern { 0 };
+
 struct states_T
 {
     uint16_t newDataRx : 1 { 0 };
+    uint16_t autoExp : 1 { 1 };
     uint16_t cameraCountdown : 1 { 0 };
     uint16_t sdCardPresented : 1 { 0 };
     uint16_t sdCardMounted : 1 { 0 };
@@ -132,26 +127,38 @@ __attribute__( ( constructor( 101 ) ) ) void ENABLE_RCC_D2_CLK( void )
     __HAL_RCC_D2SRAM2_CLK_ENABLE();
     __HAL_RCC_D2SRAM3_CLK_ENABLE();
 }
+// #pragma pack( push, 1 )
+
+struct Pixel_T
+{
+    uint16_t g : 6 { 0 };
+    uint16_t b : 5 { 0 };
+    uint16_t r : 5 { 0 };
+};
 
 struct TxData_T
 {
   private:
-    uint8_t begin[ 3 ] { 'b', 'g', 'n' };
+    uint32_t begin : 24 { 0b011011100110011101100010 };
 
   public:
-    uint8_t x { 0 };
-    uint16_t frame[ WIDTH * HEIGHT ] {};
-    uint32_t time { 0 };
-    uint16_t avgLuminance { 0 };
+    uint32_t : 1;                       // space for future use
+    uint32_t cameraEnable : 1 { 0 };    //
+    uint32_t avgLuminance : 6 { 0 };    // 0-63
+    Pixel_T frame[ WIDTH * HEIGHT ] {}; //
 
-    uint8_t aec { 0 };
-    uint8_t y : 7 { 0 };
-    uint8_t cameraEnable : 1 { 0 };
+    uint32_t time { 0 }; //
+
+    uint64_t : 3; // space for future use
+    uint64_t aec : 16 { 0 };
+    uint64_t x : 11 { 0 }; // in range 0-2047
+    uint64_t y : 10 { 0 }; // in range 0-1023
     TxData_T() __attribute__( ( constructor( 102 ) ) ) {};
 
   private:
-    uint8_t end[ 4 ] { 'e', 'n', 'd' };
+    uint64_t end : 24 { 0b011001000110111001100101 };
 } TxData __attribute__( ( section( ".RAM_D2" ) ) );
+// #pragma pack( pop )
 
 struct RxData_T
 {
@@ -214,7 +221,7 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
     if ( htim->Instance == TIM7 )
     {
         HAL_TIM_Base_Stop_IT( htim );
-        states.cameraCountdown = true;
+        states.cameraCountdown = false;
     }
     else if ( htim->Instance == TIM3 )
     {
@@ -227,7 +234,7 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
 {
     states.newFrame = true;
     DCMI->CR &= ~DCMI_CR_CAPTURE;
-    if ( TxData.aec == 0 )
+    if ( states.autoExp )
     {
         ov2640_set_exposure_control( &gs_handle, states.nightMode ? OV2640_CONTROL_MANUAL : OV2640_CONTROL_AUTO );
         if ( states.nightMode )
@@ -238,7 +245,7 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
         return;
     ov2640_set_offset_x( &gs_handle, TxData.x );
     ov2640_set_offset_y( &gs_handle, TxData.y );
-    if ( TxData.aec )
+    if ( !states.autoExp )
     {
         ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
         ov2640_set_aec( &gs_handle, TxData.aec );
@@ -304,19 +311,16 @@ void my_printf( const char *fmt, ... )
 
 void getAverageLuminance()
 {
-    if ( !states.newConfigPresented )
-        return;
-    uint32_t sum = 0;
-    for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
-    {
-        uint16_t pixel = TxData.frame[ i ];
-        uint8_t r      = RGB565_R( pixel );
-        uint8_t g      = RGB565_G( pixel ) << 1;
-        uint8_t b      = RGB565_B( pixel );
-        sum += ( r + g + b ) / 3;
-    }
-    uint8_t measurement = sum / ( WIDTH * HEIGHT );
-
+    // if ( !states.newConfigPresented )
+    //     return;
+    // uint32_t sum = 0;
+    // for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
+    // {
+    //     auto pixel = TxData.frame[ i ];
+    //     sum += ( pixel.r + ( pixel.g >> 1 ) + pixel.b ) / 3;
+    // }
+    uint8_t measurement = avgSum / ( WIDTH * HEIGHT );
+    avgSum              = 0;
     float predict_error = kalmanState.errorCovar + kalmanState.processNoise;
     float kalman_gain   = predict_error / ( predict_error + kalmanState.measureNoise );
 
@@ -350,18 +354,18 @@ void CDC_TX_FRAME()
 {
     dataLen           = sizeof( TxData );
     curentFrameBuffer = reinterpret_cast<uint8_t *>( &TxData );
-    if ( !TxData.aec )
+    if ( states.autoExp )
         TxData.aec = aecControl.aecValue;
     TxData.time = RTC_timestamp();
     CDC_Transmit_FS( reinterpret_cast<uint8_t *>( &TxData ), 1u << 12u );
 }
 
-HSL_t inline rgbToHSL( uint16_t p )
+HSL_t inline rgbToHSL( Pixel_T p )
 {
     HSL_t result;
-    uint8_t r = RGB565_R( p ) << 1;
-    uint8_t g = RGB565_G( p );
-    uint8_t b = RGB565_B( p ) << 1; // 0-63
+    uint8_t r = p.r << 1;
+    uint8_t g = p.g;
+    uint8_t b = p.b << 1; // 0-63
 
     uint8_t min = r;
     uint8_t max = r;
@@ -416,7 +420,7 @@ HSL_t inline rgbToHSL( uint16_t p )
     return result;
 }
 
-bool inline isRed( uint16_t pixel )
+bool inline isRed( Pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
@@ -426,7 +430,7 @@ bool inline isRed( uint16_t pixel )
     // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
 }
 
-bool inline isYellow( uint16_t pixel )
+bool inline isYellow( Pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
@@ -446,7 +450,7 @@ bool inline isYellow( uint16_t pixel )
 //     return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
 // }
 
-bool isLightBlue( uint16_t pixel )
+bool isLightBlue( Pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h > 170 ) && ( hsl.h < 220 ) ) && ( hsl.s > ( uint8_t ) ( .04f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .25f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .95f * 63 ) ) );
@@ -534,6 +538,7 @@ bool inline dayTestForBus()
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
+            avgSum += ( TxData.frame[ leftP ].r + ( TxData.frame[ leftP ].g >> 1 ) + TxData.frame[ leftP ].b ) / 3;
             if ( true && !pixelVisited.test( w + h * WIDTH ) && isLightBlue( TxData.frame[ leftP ] ) )
             {
                 auto rightP     = fillColorPattern( leftP, 0 );
@@ -550,24 +555,24 @@ bool inline dayTestForBus()
                         {
                             if ( ++countLightBluePattern > 1 )
                                 states.cameraDebugPattern = true;
-                            for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
-                            {
-                                if ( GET_Y( leftP ) > 0 )
-                                    TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0xf800;
-                                if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                                    TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0xf800;
-                            }
-
-                            for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
-                            {
-                                if ( GET_X( leftP ) > 0 )
-                                    TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0xf800;
-                                if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                                    TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0xf800;
-                            }
                         }
                         else
                             states.cameraDebugPattern = true;
+                    }
+                    for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
+                    {
+                        if ( GET_Y( leftP ) > 0 )
+                            TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = Pixel_T { 31, 0, 0 };
+                        if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
+                            TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = Pixel_T { 31, 0, 0 };
+                    }
+
+                    for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
+                    {
+                        if ( GET_X( leftP ) > 0 )
+                            TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = Pixel_T { 31, 0, 0 };
+                        if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
+                            TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = Pixel_T { 31, 0, 0 };
                     }
                 }
             }
@@ -590,6 +595,7 @@ bool nightTestForBus() // by lights pattern
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
+            avgSum += ( TxData.frame[ leftP ].r + ( TxData.frame[ leftP ].g >> 1 ) + TxData.frame[ leftP ].b ) / 3;
             bool red { isRed( TxData.frame[ leftP ] ) };
             if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( TxData.frame[ leftP ] )
                                                           // || isLight( frameBuffers[ 0 ][ leftP ] )
@@ -632,7 +638,7 @@ bool nightTestForBus() // by lights pattern
                             states.cameraDebugPattern = true;
                         }
                     }
-                    else
+                    else if ( square )
                     {
                         states.cameraDebugPattern = true;
                     }
@@ -643,24 +649,24 @@ bool nightTestForBus() // by lights pattern
                 for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                 {
                     if ( GET_Y( leftP ) > 0 )
-                        TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = 0x07e0;
+                        TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = Pixel_T { 0, 63, 0 };
                     if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = 0x07e0;
+                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = Pixel_T { 0, 63, 0 };
                 }
 
                 for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                 {
                     if ( GET_X( leftP ) > 0 )
-                        TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = 0x07e0;
+                        TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = Pixel_T { 0, 63, 0 };
                     if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = 0x07e0;
+                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = Pixel_T { 0, 63, 0 };
                 }
             }
             }
         }
     }
-    if ( redLigthCount != 4 )
-        states.cameraDebugPattern = true;
+    // if ( redLigthCount != 4 )
+    //     states.cameraDebugPattern = true;
     if ( countLightsPattern )
     {
         if ( YellowX > RedX && YellowX - RedX > 90 && YellowX - RedX < 110 ) // 90 < bus width < 110
@@ -668,8 +674,6 @@ bool nightTestForBus() // by lights pattern
         else if ( redLigthCount > 1 )
         {
             return true;
-            states.cameraDebugPattern = true;
-            return false;
         }
         else
         {
@@ -677,8 +681,8 @@ bool nightTestForBus() // by lights pattern
             return false;
         }
     }
-    else
-        states.cameraDebugPattern = true;
+    // else
+    //     states.cameraDebugPattern = true;
     return false;
 }
 
@@ -896,7 +900,7 @@ void updateTime()
 
 void aecAutoControl()
 {
-    if ( TxData.aec != 0 )
+    if ( !states.autoExp )
         return;
     if ( states.nightMode )
     {
@@ -1043,44 +1047,11 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        if ( states.newDataRx )
-        {
-            auto Recv { reinterpret_cast<RxData_T *>( UserRxBufferFS ) };
-            TxData.cameraEnable = Recv->cameraEnabled;
-            switch ( Recv->command )
-            {
-                case noCommand:
-                    break; // todo
-                case newXoffset:
-                    TxData.x                  = Recv->additionalData;
-                    states.newConfigPresented = true;
-                    break;
-                case newYoffset:
-                    TxData.y                  = Recv->additionalData;
-                    states.newConfigPresented = true;
-                    break;
-                case newAec:
-                    TxData.aec                = Recv->additionalData;
-                    states.newConfigPresented = true;
-                    break;
-                case aimingMode:
-                    break; // todo
-                case takeShoot:
-                    char name[ 20 ];
-                    uint32_t photoNum { IncrementLastPhotoNumber() };
-                    if ( photoNum )
-                    {
-                        sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
-                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                        enableLed2ms();
-                    }
-                    break;
-            }
-        }
+        uint32_t b = HAL_GetTick();
         if ( states.newFrame )
         {
             states.newFrame = false;
-            if ( states.cameraCountdown && TxData.cameraEnable && states.sdCardPresented )
+            if ( !states.cameraCountdown && TxData.cameraEnable && states.sdCardPresented )
             {
                 {
                     auto testResult = testForBus();
@@ -1094,7 +1065,7 @@ int main( void )
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
                             enableLed2ms();
                         }
-                        states.cameraCountdown = false;
+                        states.cameraCountdown = true;
                         StartCountdown();
                     }
                     if ( states.cameraDebugPattern )
@@ -1117,11 +1088,6 @@ int main( void )
             DCMI->CR |= DCMI_CR_CAPTURE;
             getAverageLuminance();
             aecAutoControl();
-            if ( states.newDataRx )
-            {
-                CDC_TX_FRAME();
-                states.newDataRx = 0;
-            }
         }
         if ( states.sdCardPresented && !states.sdCardMounted )
         {
@@ -1136,6 +1102,55 @@ int main( void )
                 else
                     states.sdCardMounted = 1;
             }
+        }
+        auto e = HAL_GetTick() - b;
+        char d[ 4 ];
+        sprintf( d, "d:%i", b );
+        if ( e )
+        {
+            ( void ) e;
+        }
+        if ( states.newDataRx )
+        {
+            auto Recv { reinterpret_cast<RxData_T *>( UserRxBufferFS ) };
+            TxData.cameraEnable = Recv->cameraEnabled;
+            switch ( Recv->command )
+            {
+                case noCommand:
+                    break; // todo
+                case newXoffset:
+                    TxData.x                  = Recv->additionalData;
+                    states.newConfigPresented = true;
+                    break;
+                case newYoffset:
+                    TxData.y                  = Recv->additionalData;
+                    states.newConfigPresented = true;
+                    break;
+                case newAec:
+                    if ( Recv->additionalData )
+                    {
+                        states.autoExp = 0;
+                        TxData.aec     = Recv->additionalData;
+                    }
+                    else
+                        states.autoExp = 1;
+                    states.newConfigPresented = true;
+                    break;
+                case aimingMode:
+                    break; // todo
+                case takeShoot:
+                    char name[ 20 ];
+                    uint32_t photoNum { IncrementLastPhotoNumber() };
+                    if ( photoNum )
+                    {
+                        sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
+                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                        enableLed2ms();
+                    }
+                    break;
+            }
+            CDC_TX_FRAME();
+            states.newDataRx = 0;
         }
         if ( states.needCalibrateRTC )
         {

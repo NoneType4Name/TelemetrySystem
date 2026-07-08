@@ -4,23 +4,29 @@
 #    include <cstdint>
 #    include "constants.h"
 
+// #    pragma pack( 1 )
 struct RxData_T
 {
   private:
-    uint8_t begin[ 4 ] = { 'b', 'g', 'n', '\0' };
+    uint32_t begin : 24 { 0b011011100110011101100010 };
 
   public:
-    uint16_t frame[ WIDTH * HEIGHT ] {};
-    uint16_t x : 8 { 0 };
-    uint16_t cameraEnable : 1 { 0 };
-    uint16_t y : 7 { 0 };
-    uint8_t avgLuminance { 0 };
-    uint8_t aec { 0 };
-    uint32_t time { 0 };
+    uint32_t : 1;                        // space for future use
+    uint32_t cameraEnable : 1 { 0 };     //
+    uint32_t avgLuminance : 6 { 0 };     // 0-63
+    uint16_t frame[ WIDTH * HEIGHT ] {}; //
+
+    uint32_t time { 0 }; //
+
+    uint64_t : 3; // space for future use
+    uint64_t aec : 16 { 0 };
+    uint64_t x : 11 { 0 }; // in range 0-2047
+    uint64_t y : 10 { 0 }; // in range 0-1023
 
   private:
-    uint8_t end[ 4 ] = { 'e', 'n', 'd', '\0' };
+    uint64_t end : 24 { 0b011001000110111001100101 };
 };
+// #    pragma pack()
 
 enum TxCommand : uint16_t
 {

@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "DataTypes.h"
 #include <QPixmap>
 #include <qlogging.h>
 #include <qobject.h>
@@ -33,11 +34,10 @@ void MainWindow::handleScan()
             serial->setPort( p );
             serial->setBaudRate( QSerialPort::Baud115200 );
             serial->open( QIODevice::ReadWrite );
-            timer                 = new QTimer( this );
-            txData.additionalData = 1;
+            timer = new QTimer( this );
             connect( timer, &QTimer::timeout, this, [ & ]()
-                     { serial->write( QByteArray( reinterpret_cast<uint8_t *>( &txData ) ) ); } );
-            timer->start( 100 );
+                     { serial->write( QByteArray( reinterpret_cast<const char *>( &txData ), sizeof( txData ) ) ); } );
+            timer->start( 200 );
             break;
         }
     }
@@ -45,12 +45,9 @@ void MainWindow::handleScan()
 
 void MainWindow::readSerialData()
 {
-    if ( timer )
-    {
-        timer->stop();
-        delete timer;
-        timer = 0;
-    }
+    static QElapsedTimer timer;
+    if ( !bytes.isEmpty() )
+        timer.restart();
     auto rD { serial->readAll() };
     if ( bytes.isEmpty() && rD.indexOf( "bgn" ) != 0 )
         return;
@@ -69,13 +66,44 @@ void MainWindow::readSerialData()
         if ( endingPos == -1 )
             return;
         const auto *rxData = reinterpret_cast<RxData_T *>( bytes.data() );
-        auto p             = rxData->time;
-        int seconds        = ( p >> 0 ) & 0x3F;
-        int minutes        = ( p >> 6 ) & 0x3F;
-        int hours          = ( p >> 12 ) & 0x1F;
-        int day            = ( p >> 17 ) & 0x1F;
-        int month          = ( p >> 22 ) & 0x0F;
-        int year           = ( p >> 26 ) & 0x3F;
+        switch ( txData.command )
+        {
+            case noCommand:
+                break;
+            case newXoffset:
+                if ( rxData->x == txData.additionalData )
+                {
+                    txData.command        = noCommand;
+                    txData.additionalData = 0;
+                }
+                break;
+            case newYoffset:
+                if ( rxData->y == txData.additionalData )
+                {
+                    txData.command        = noCommand;
+                    txData.additionalData = 0;
+                }
+                break;
+            case newAec:
+                // if ( rxData->aec == txData.additionalData )
+                // {
+                txData.command        = noCommand;
+                txData.additionalData = 0;
+                // }
+                break;
+            case aimingMode:
+                break;
+            case takeShoot:
+                break;
+        }
+
+        auto p      = rxData->time;
+        int seconds = ( p >> 0 ) & 0x3F;
+        int minutes = ( p >> 6 ) & 0x3F;
+        int hours   = ( p >> 12 ) & 0x1F;
+        int day     = ( p >> 17 ) & 0x1F;
+        int month   = ( p >> 22 ) & 0x0F;
+        int year    = ( p >> 26 ) & 0x3F;
 
         QString timeStr = QString( "%1.%2.20%3 %4:%5:%6" )
                               .arg( day, 2, 10, QChar( '0' ) )
@@ -98,15 +126,23 @@ void MainWindow::readSerialData()
         ui->avgLabel->setText( QString::number( rxData->avgLuminance ) );
         QImage image( reinterpret_cast<const uint8_t *>( rxData->frame ), WIDTH, HEIGHT, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
+        auto ms = timer.nsecsElapsed() / 1000;
         bytes.clear();
-        serial->write( QByteArray( reinterpret_cast<uint8_t *>( &txData ) ) );
     }
 }
 
 void MainWindow::handleError( QSerialPort::SerialPortError error )
 {
     if ( error == QSerialPort::SerialPortError::ResourceError && serial->isOpen() )
+    {
+        if ( timer )
+        {
+            timer->stop();
+            delete timer;
+            timer = 0;
+        }
         serial->close();
+    }
 }
 
 void MainWindow::handleClose()
@@ -132,7 +168,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_upPushButton_clicked()
 {
-    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    uint16_t y { static_cast<uint16_t>( ui->yOffsetLineEdit->text().toUInt() ) };
     if ( y > 10 )
         y -= 10;
     else
@@ -147,8 +183,8 @@ void MainWindow::on_upPushButton_clicked()
 
 void MainWindow::on_downPushButton_clicked()
 {
-    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
-    if ( y < HEIGHT - 10 )
+    uint16_t y { static_cast<uint16_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    if ( y < 1200 - 10 )
         y += 10;
     else
     {
@@ -162,7 +198,7 @@ void MainWindow::on_downPushButton_clicked()
 
 void MainWindow::on_leftPushButton_clicked()
 {
-    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    uint16_t x { static_cast<uint16_t>( ui->xOffsetLineEdit->text().toUInt() ) };
     if ( x > 10 )
         x -= 10;
     else
@@ -177,8 +213,8 @@ void MainWindow::on_leftPushButton_clicked()
 
 void MainWindow::on_rightPushButton_clicked()
 {
-    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
-    if ( x < WIDTH - 10 )
+    uint16_t x { static_cast<uint16_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    if ( x < 1600 - 10 )
         x += 10;
     else
     {
@@ -192,10 +228,10 @@ void MainWindow::on_rightPushButton_clicked()
 
 void MainWindow::on_xOffsetLineEdit_editingFinished()
 {
-    uint8_t x { static_cast<uint8_t>( ui->xOffsetLineEdit->text().toUInt() ) };
+    uint16_t x { static_cast<uint16_t>( ui->xOffsetLineEdit->text().toUInt() ) };
     txData.command = TxCommand::newXoffset;
-    if ( x > WIDTH )
-        x = WIDTH;
+    if ( x > 1600 )
+        x = 1600;
     else if ( x < 0 )
         x = 0;
     txData.additionalData = x;
@@ -203,10 +239,10 @@ void MainWindow::on_xOffsetLineEdit_editingFinished()
 
 void MainWindow::on_yOffsetLineEdit_editingFinished()
 {
-    uint8_t y { static_cast<uint8_t>( ui->yOffsetLineEdit->text().toUInt() ) };
+    uint16_t y { static_cast<uint16_t>( ui->yOffsetLineEdit->text().toUInt() ) };
     txData.command = TxCommand::newYoffset;
-    if ( y > HEIGHT )
-        y = HEIGHT;
+    if ( y > 1200 )
+        y = 1200;
     else if ( y < 0 )
         y = 0;
     txData.additionalData = y;

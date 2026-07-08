@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_cdc_if.h"
+#include <string.h>
 
 /* USER CODE BEGIN INCLUDE */
 
@@ -259,7 +260,7 @@ static int8_t CDC_Control_FS( uint8_t cmd, uint8_t *pbuf, uint16_t length )
 static int8_t CDC_Receive_FS( uint8_t *Buf, uint32_t *Len )
 {
     /* USER CODE BEGIN 6 */
-    USBD_CDC_SetRxBuffer( &hUsbDeviceFS, &Buf[ 0 ] );
+    USBD_CDC_SetRxBuffer( &hUsbDeviceFS, Buf );
     USBD_CDC_ReceivePacket( &hUsbDeviceFS );
     memcpy( UserRxBufferFS, Buf, *Len );
     setNewRxDataFlag();
