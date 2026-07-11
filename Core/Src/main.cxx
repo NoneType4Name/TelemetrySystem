@@ -127,12 +127,11 @@ __attribute__( ( constructor( 101 ) ) ) void ENABLE_RCC_D2_CLK( void )
     __HAL_RCC_D2SRAM2_CLK_ENABLE();
     __HAL_RCC_D2SRAM3_CLK_ENABLE();
 }
-// #pragma pack( push, 1 )
 
 struct Pixel_T
 {
-    uint16_t g : 6 { 0 };
     uint16_t b : 5 { 0 };
+    uint16_t g : 6 { 0 };
     uint16_t r : 5 { 0 };
 };
 
@@ -169,12 +168,9 @@ struct RxData_T
 
 struct AecAutoControl
 {
-    uint16_t targetMax     = 30;
-    uint16_t targetMin     = 20;
-    uint16_t aecValue      = 200;
-    uint8_t stableCount    = 0;
-    uint8_t requiredStable = 2;
-    int16_t stepSize       = 1;
+    uint16_t aecValue     = 200;
+    uint8_t ticksToChange = 0;
+    int16_t stepSize      = 5;
 } aecControl;
 
 struct KalmanFilterState
@@ -236,20 +232,33 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     DCMI->CR &= ~DCMI_CR_CAPTURE;
     if ( states.autoExp )
     {
-        ov2640_set_exposure_control( &gs_handle, states.nightMode ? OV2640_CONTROL_MANUAL : OV2640_CONTROL_AUTO );
-        if ( states.nightMode )
-            ov2640_set_aec( &gs_handle, aecControl.aecValue );
+        ov2640_set_aec( &gs_handle, aecControl.aecValue );
     }
-    ov2640_get_aec( &gs_handle, &aecControl.aecValue );
+    // uint8_t avg;
+    // ov2640_get_aec( &gs_handle, &aecControl.aecValue );
+    // ov2640_get_luminance_average( &gs_handle, &avg );
+    // TxData.avgLuminance = avg;
     if ( !states.newConfigPresented )
         return;
     ov2640_set_offset_x( &gs_handle, TxData.x );
     ov2640_set_offset_y( &gs_handle, TxData.y );
+    // std::bitset<2 * 16> zones { 0 };
+    // uint8_t yblock { static_cast<uint8_t>( TxData.y / ( 1200 / 4 ) ) };
+    // zones.set( ( yblock * 4 + TxData.x / ( 1600 / 4 ) ) * 2, 1 );
+    // zones.set( ( yblock * 4 + TxData.x / ( 1600 / 4 ) ) * 2 + 1, 1 );
+
+    // if ( TxData.y / ( 1200 / 4 ) != ( TxData.y + HEIGHT ) / ( 1200 / 4 ) )
+    // {
+    //     yblock = ( TxData.y + HEIGHT ) / ( 1200 / 4 );
+    // }
+    // zones.set( ( yblock * 4 + ( TxData.x + WIDTH ) / ( 1600 / 4 ) ) * 2, 1 );
+    // zones.set( ( yblock * 4 + ( TxData.x + WIDTH ) / ( 1600 / 4 ) ) * 2 + 1, 1 );
+    // ov2640_set_16_zone_average_weight_option( &gs_handle, zones.to_ulong() );
     if ( !states.autoExp )
-    {
-        ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
+        // {
+        // ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
         ov2640_set_aec( &gs_handle, TxData.aec );
-    }
+    // }
     states.newConfigPresented = false;
     // auto d = CDC_Transmit_FS( curentFrameBuffer, frameLen );
 }
@@ -314,20 +323,21 @@ void getAverageLuminance()
     // if ( !states.newConfigPresented )
     //     return;
     // uint32_t sum = 0;
-    // for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
-    // {
-    //     auto pixel = TxData.frame[ i ];
-    //     sum += ( pixel.r + ( pixel.g >> 1 ) + pixel.b ) / 3;
-    // }
-    uint8_t measurement = avgSum / ( WIDTH * HEIGHT );
+    if ( !TxData.cameraEnable )
+        for ( size_t i { 0 }; i < WIDTH * HEIGHT; ++i )
+        {
+            auto pixel = TxData.frame[ i ];
+            avgSum += ( ( pixel.r << 1 ) + pixel.g + ( pixel.b << 1 ) ) / 3;
+        }
+    TxData.avgLuminance = avgSum / ( WIDTH * HEIGHT );
     avgSum              = 0;
-    float predict_error = kalmanState.errorCovar + kalmanState.processNoise;
-    float kalman_gain   = predict_error / ( predict_error + kalmanState.measureNoise );
+    // float predict_error = kalmanState.errorCovar + kalmanState.processNoise;
+    // float kalman_gain   = predict_error / ( predict_error + kalmanState.measureNoise );
 
-    kalmanState.estimate   = kalmanState.estimate + kalman_gain * ( measurement - kalmanState.estimate );
-    kalmanState.errorCovar = ( 1.0f - kalman_gain ) * predict_error;
+    // kalmanState.estimate   = kalmanState.estimate + kalman_gain * ( measurement - kalmanState.estimate );
+    // kalmanState.errorCovar = ( 1.0f - kalman_gain ) * predict_error;
 
-    TxData.avgLuminance = ( uint8_t ) ( kalmanState.estimate + 0.5f );
+    // TxData.avgLuminance = ( uint8_t ) ( kalmanState.estimate + 0.5f );
 }
 
 uint32_t RTC_timestamp()
@@ -538,7 +548,7 @@ bool inline dayTestForBus()
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
-            avgSum += ( TxData.frame[ leftP ].r + ( TxData.frame[ leftP ].g >> 1 ) + TxData.frame[ leftP ].b ) / 3;
+            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g + ( TxData.frame[ leftP ].b << 1 ) ) / 3;
             if ( true && !pixelVisited.test( w + h * WIDTH ) && isLightBlue( TxData.frame[ leftP ] ) )
             {
                 auto rightP     = fillColorPattern( leftP, 0 );
@@ -595,7 +605,7 @@ bool nightTestForBus() // by lights pattern
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
-            avgSum += ( TxData.frame[ leftP ].r + ( TxData.frame[ leftP ].g >> 1 ) + TxData.frame[ leftP ].b ) / 3;
+            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g + ( TxData.frame[ leftP ].b << 1 ) ) / 3;
             bool red { isRed( TxData.frame[ leftP ] ) };
             if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( TxData.frame[ leftP ] )
                                                           // || isLight( frameBuffers[ 0 ][ leftP ] )
@@ -915,14 +925,40 @@ void aecAutoControl()
     }
     else
     {
-        if ( aecControl.aecValue > 200 )
+        if ( TxData.avgLuminance > OV2640_BASIC_DEFAULT_LUMINANCE_LOW && TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_HIGH )
+            return;
+        if ( aecControl.ticksToChange && --aecControl.ticksToChange )
+            return;
+        aecControl.ticksToChange = 3;
+        uint8_t target           = ( OV2640_BASIC_DEFAULT_LUMINANCE_LOW + OV2640_BASIC_DEFAULT_LUMINANCE_HIGH ) / 2;
+        int16_t error            = TxData.avgLuminance - target;
+
+        int16_t absError   = ( error < 0 ) ? -error : error;
+        int16_t scaledStep = ( absError * aecControl.stepSize ) / 10;
+
+        if ( scaledStep < aecControl.stepSize )
+            scaledStep = aecControl.stepSize;
+        if ( scaledStep > aecControl.stepSize * 5 )
+            scaledStep = aecControl.stepSize * 5;
+
+        int16_t adjustment = ( error < 0 ) ? scaledStep : -scaledStep;
+
+        int16_t newAec = aecControl.aecValue + adjustment;
+        if ( newAec < 1 )
+            newAec = 1;
+        if ( newAec > 200 )
         {
-            if ( TxData.avgLuminance < 12 )
+            if ( TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_LOW && !states.nightMode )
             {
-                states.nightMode    = true;
-                aecControl.aecValue = 200;
+                states.nightMode = true;
             }
+            newAec = 200;
         }
+
+        // if ( newAec != aecControl.aecValue )
+        // {
+        aecControl.aecValue = newAec;
+        // }
     }
 }
 
@@ -1047,10 +1083,8 @@ int main( void )
     /* USER CODE BEGIN WHILE */
     while ( 1 )
     {
-        uint32_t b = HAL_GetTick();
         if ( states.newFrame )
         {
-            states.newFrame = false;
             if ( !states.cameraCountdown && TxData.cameraEnable && states.sdCardPresented )
             {
                 {
@@ -1085,7 +1119,6 @@ int main( void )
                     }
                 }
             }
-            DCMI->CR |= DCMI_CR_CAPTURE;
             getAverageLuminance();
             aecAutoControl();
         }
@@ -1102,13 +1135,6 @@ int main( void )
                 else
                     states.sdCardMounted = 1;
             }
-        }
-        auto e = HAL_GetTick() - b;
-        char d[ 4 ];
-        sprintf( d, "d:%i", b );
-        if ( e )
-        {
-            ( void ) e;
         }
         if ( states.newDataRx )
         {
@@ -1152,6 +1178,8 @@ int main( void )
             CDC_TX_FRAME();
             states.newDataRx = 0;
         }
+        states.newFrame = false;
+        DCMI->CR |= DCMI_CR_CAPTURE;
         if ( states.needCalibrateRTC )
         {
             updateTime();
