@@ -37,7 +37,7 @@
 #ifndef OV2640_BASIC_H
 #define OV2640_BASIC_H
 
-#include "ov2640_interface.h"
+#include "driver_ov2640.h"
 #include "main.h"
 
 #ifdef __cplusplus

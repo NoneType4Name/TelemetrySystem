@@ -100,6 +100,7 @@ extern "C"
     extern size_t dataLen;
     // extern bool CDC_RxStatus;
     /* USER CODE END EXPORTED_VARIABLES */
+
     /**
      * @}
      */

@@ -62,13 +62,13 @@ bool ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const
 
 bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port )
 {
-    sprintf( ESP_TX_buff, "AT+CIPSTART=0,\"%s\",\"%s\",%d\r\n", type, ip, port );
+    sprintf( ESP_TX_buff, "AT+CIPSTART=\"%s\",\"%s\",%d\r\n", type, ip, port );
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
 }
 
 bool ESP8266_AT_CIPSEND( int requestLength )
 {
-    sprintf( ESP_TX_buff, "AT+CIPSEND=0,%d\r\n", requestLength );
+    sprintf( ESP_TX_buff, "AT+CIPSEND=%d\r\n", requestLength );
     return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
 }
 
@@ -88,7 +88,7 @@ bool ESP8266_Send( const char *command )
 bool ESP8266_Recv( const char *correctAnswer )
 {
     uint8_t prevRecvByte = 0;
-    uint32_t timeout     = 1000;
+    uint32_t timeout     = 5000;
     uint32_t time        = HAL_GetTick();
 
     ESP8266_ClearRecvBuff();
@@ -144,7 +144,6 @@ char *ESP8266_GetResponse( uint32_t timeout )
     char *dataStart = NULL;
     char tempBuff[ ESP_RX_buff_size ];
     int totalLen    = 0;
-    int connId      = 0;
     int payloadLen  = 0;
     int bytesNeeded = 0;
     uint32_t time   = HAL_GetTick();
@@ -156,7 +155,7 @@ char *ESP8266_GetResponse( uint32_t timeout )
         ipdStart = strstr( ESP_RX_buff, "+IPD" );
         while ( ipdStart != NULL && ipdStart < ESP_RX_buff + ESP_RX_buff_index )
         {
-            if ( sscanf( ipdStart, "+IPD,%d,%d:", &connId, &payloadLen ) == 2 )
+            if ( sscanf( ipdStart, "+IPD,%d:", &payloadLen ) == 1 )
             {
                 dataStart = strchr( ipdStart, ':' );
                 if ( dataStart != NULL )
@@ -181,7 +180,7 @@ char *ESP8266_GetResponse( uint32_t timeout )
     ipdStart = strstr( ESP_RX_buff, "+IPD" );
     while ( ipdStart != NULL && totalLen < ESP_RX_buff_size - 1 )
     {
-        if ( sscanf( ipdStart, "+IPD,%d,%d:", &connId, &payloadLen ) != 2 )
+        if ( sscanf( ipdStart, "+IPD,%d:", &payloadLen ) != 1 )
             break;
 
         dataStart = strchr( ipdStart, ':' );

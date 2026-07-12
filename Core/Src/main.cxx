@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -36,7 +35,7 @@
 #include "usbd_cdc_if.h"
 #include <stdio.h>
 #include <stdarg.h>
-#include <string.h>
+#include <time.h>
 #include <vector>
 // #include "TestImage.h"
 extern "C"
@@ -79,6 +78,7 @@ RTC_HandleTypeDef hrtc;
 SD_HandleTypeDef hsd1;
 
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart3;
@@ -128,14 +128,14 @@ __attribute__( ( constructor( 101 ) ) ) void ENABLE_RCC_D2_CLK( void )
     __HAL_RCC_D2SRAM3_CLK_ENABLE();
 }
 
-struct Pixel_T
+struct pixel_T
 {
     uint16_t b : 5 { 0 };
     uint16_t g : 6 { 0 };
     uint16_t r : 5 { 0 };
 };
 
-struct TxData_T
+struct txData_T
 {
   private:
     uint32_t begin : 24 { 0b011011100110011101100010 };
@@ -144,7 +144,7 @@ struct TxData_T
     uint32_t : 1;                       // space for future use
     uint32_t cameraEnable : 1 { 0 };    //
     uint32_t avgLuminance : 6 { 0 };    // 0-63
-    Pixel_T frame[ WIDTH * HEIGHT ] {}; //
+    pixel_T frame[ WIDTH * HEIGHT ] {}; //
 
     uint32_t time { 0 }; //
 
@@ -152,28 +152,36 @@ struct TxData_T
     uint64_t aec : 16 { 0 };
     uint64_t x : 11 { 0 }; // in range 0-2047
     uint64_t y : 10 { 0 }; // in range 0-1023
-    TxData_T() __attribute__( ( constructor( 102 ) ) ) {};
+    txData_T() __attribute__( ( constructor( 102 ) ) ) {};
 
   private:
     uint64_t end : 24 { 0b011001000110111001100101 };
 } TxData __attribute__( ( section( ".RAM_D2" ) ) );
 // #pragma pack( pop )
 
-struct RxData_T
+struct rxData_T
 {
     uint16_t cameraEnabled : 1 { 0 };
     RxCommand command : 3 { 0 };
     uint16_t additionalData : 12 { 0 };
 };
 
-struct AecAutoControl
+struct lastTelemetry_T
+{
+    uint64_t timeByShedule {};
+    bool byTelemetry {};
+    uint32_t tmId {};
+    uint8_t ticksToOutdate { 150 };
+} lastTelemetry;
+
+struct aecAutoControl_T
 {
     uint16_t aecValue     = 200;
     uint8_t ticksToChange = 0;
     int16_t stepSize      = 5;
 } aecControl;
 
-struct KalmanFilterState
+struct kalmanFilterState_T
 {
     float estimate     = 0.0f;
     float errorCovar   = 1.0f;
@@ -204,6 +212,7 @@ static void MX_USART3_UART_Init( void );
 static void MX_TIM3_Init( void );
 static void MX_TIM7_Init( void );
 static void MX_RTC_Init( void );
+static void MX_TIM6_Init( void );
 /* USER CODE BEGIN PFP */
 
 void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
@@ -223,6 +232,13 @@ void HAL_TIM_PeriodElapsedCallback( TIM_HandleTypeDef *htim )
     {
         HAL_TIM_Base_Stop_IT( htim );
         HAL_GPIO_WritePin( GPIOE, GPIO_PIN_3, GPIO_PIN_RESET );
+    }
+    else if ( htim->Instance == TIM6 )
+    {
+        if ( !--lastTelemetry.ticksToOutdate )
+        {
+            HAL_TIM_Base_Stop_IT( htim );
+        }
     }
 }
 
@@ -360,6 +376,23 @@ uint32_t RTC_timestamp()
     return packed;
 }
 
+uint64_t RTC_Unix_Timestamp()
+{
+    struct tm time_tm = { 0 };
+    RTC_TimeTypeDef sTime {};
+    RTC_DateTypeDef sDate {};
+    HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
+    HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
+    time_tm.tm_sec   = sTime.Seconds;
+    time_tm.tm_min   = sTime.Minutes;
+    time_tm.tm_hour  = sTime.Hours;
+    time_tm.tm_mday  = sDate.Date;
+    time_tm.tm_mon   = sDate.Month - 1;
+    time_tm.tm_year  = sDate.Year + 100;
+    time_tm.tm_isdst = -1;
+    return mktime( &time_tm );
+}
+
 void CDC_TX_FRAME()
 {
     dataLen           = sizeof( TxData );
@@ -370,7 +403,7 @@ void CDC_TX_FRAME()
     CDC_Transmit_FS( reinterpret_cast<uint8_t *>( &TxData ), 1u << 12u );
 }
 
-HSL_t inline rgbToHSL( Pixel_T p )
+HSL_t inline rgbToHSL( pixel_T p )
 {
     HSL_t result;
     uint8_t r = p.r << 1;
@@ -430,7 +463,7 @@ HSL_t inline rgbToHSL( Pixel_T p )
     return result;
 }
 
-bool inline isRed( Pixel_T pixel )
+bool inline isRed( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
@@ -440,7 +473,7 @@ bool inline isRed( Pixel_T pixel )
     // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
 }
 
-bool inline isYellow( Pixel_T pixel )
+bool inline isYellow( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
@@ -460,7 +493,7 @@ bool inline isYellow( Pixel_T pixel )
 //     return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
 // }
 
-bool isLightBlue( Pixel_T pixel )
+bool isLightBlue( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h > 170 ) && ( hsl.h < 220 ) ) && ( hsl.s > ( uint8_t ) ( .04f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .25f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .95f * 63 ) ) );
@@ -572,17 +605,17 @@ bool inline dayTestForBus()
                     for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                     {
                         if ( GET_Y( leftP ) > 0 )
-                            TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = Pixel_T { 31, 0, 0 };
+                            TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = pixel_T { 31, 0, 0 };
                         if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                            TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = Pixel_T { 31, 0, 0 };
+                            TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = pixel_T { 31, 0, 0 };
                     }
 
                     for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                     {
                         if ( GET_X( leftP ) > 0 )
-                            TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = Pixel_T { 31, 0, 0 };
+                            TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = pixel_T { 31, 0, 0 };
                         if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                            TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = Pixel_T { 31, 0, 0 };
+                            TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = pixel_T { 31, 0, 0 };
                     }
                 }
             }
@@ -659,17 +692,17 @@ bool nightTestForBus() // by lights pattern
                 for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
                 {
                     if ( GET_Y( leftP ) > 0 )
-                        TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = Pixel_T { 0, 63, 0 };
+                        TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = pixel_T { 0, 63, 0 };
                     if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = Pixel_T { 0, 63, 0 };
+                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = pixel_T { 0, 63, 0 };
                 }
 
                 for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
                 {
                     if ( GET_X( leftP ) > 0 )
-                        TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = Pixel_T { 0, 63, 0 };
+                        TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = pixel_T { 0, 63, 0 };
                     if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = Pixel_T { 0, 63, 0 };
+                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = pixel_T { 0, 63, 0 };
                 }
             }
             }
@@ -862,12 +895,46 @@ uint32_t IncrementLastPhotoNumber()
     return 0;
 }
 
+bool addNewRecord( uint32_t writeNum )
+{
+    if ( !states.sdCardMounted )
+        return 0;
+    FRESULT result;
+    UINT bytes_read;
+
+    result = f_open( &FatFsFile, "db.csv", FA_WRITE | FA_OPEN_APPEND );
+    if ( result != FR_OK )
+        return 0;
+    if ( !f_tell( &FatFsFile ) )
+    {
+        char c[ 32 ] { "id,shedule,real,telemetry,night" };
+        f_write( &FatFsFile, c, sizeof( c ), &bytes_read );
+        if ( result == FR_OK && bytes_read == sizeof( c ) )
+        {
+            return 1;
+        }
+    }
+
+    char record[ 32 ];
+    sprintf( record, "%d,%lld,%lld,%i,%i\n", writeNum, lastTelemetry.timeByShedule, RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode );
+    f_write( &FatFsFile, record, sizeof( record ), &bytes_read );
+    f_sync( &FatFsFile );
+    f_close( &FatFsFile );
+
+    if ( result == FR_OK && bytes_read == sizeof( record ) )
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
 void StartCountdown()
 {
     HAL_TIM_Base_Start_IT( &htim7 );
 }
 
-void enableLed2ms()
+void enableLed500ms()
 {
     HAL_TIM_Base_Start_IT( &htim3 );
     HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_SET );
@@ -888,8 +955,6 @@ void updateTime()
             {
                 uint8_t day, month, year, hour, minute, second, dayOfWeek;
                 auto s = sscanf( d, "{\"timezone\":\"Europe/Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"", ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour, ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek );
-                if ( s > 0 )
-                    __NOP();
                 if ( s == 7 )
                 {
                     RTC_TimeTypeDef cTime { hour, minute, second };
@@ -899,6 +964,45 @@ void updateTime()
                     HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
                     HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
                     states.needCalibrateRTC = false;
+                    return;
+                }
+            }
+        }
+        else
+            espReconnect();
+    }
+}
+
+void updateLastTelemetryInfo()
+{
+    while ( 1 )
+    {
+        if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                                                                     "Host: moscowtransport.app\r\n"
+                                                                     "User-Agent: ESP8266\r\n"
+                                                                     "Connection: close\r\n" ) )
+        {
+            auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "externalForecast" ), "\"time" );
+            if ( d )
+            {
+                uint16_t remainedTime;
+                bool telemetry;
+                uint32_t tmId;
+                auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
+                if ( s == 3 )
+                {
+                    if ( remainedTime > 5 * 60 )
+                    {
+                        lastTelemetry.ticksToOutdate = 5 * 60 / 2;
+                    }
+                    else
+                    {
+                        lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
+                    }
+                    HAL_TIM_Base_Start_IT( &htim6 );
+                    lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
+                    lastTelemetry.byTelemetry   = telemetry;
+                    lastTelemetry.tmId          = tmId;
                     return;
                 }
             }
@@ -1010,6 +1114,7 @@ int main( void )
     MX_TIM3_Init();
     MX_TIM7_Init();
     MX_RTC_Init();
+    MX_TIM6_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
     if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
@@ -1032,7 +1137,7 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    ESP8266_Send( "AT+CIPSSLSIZE=8192\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
@@ -1060,14 +1165,19 @@ int main( void )
     // ESP8266_Send( "AT+CIPSSLCERTSAVE" );
     // if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( "AT+CIPSSLCCONF=0\r\n" );
 
-    ESP8266_Send( "AT+CIPMUX=1\r\n" );
+    ESP8266_Send( "AT+CIPMUX=0\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
+    ESP8266_Send( "AT+CIPSSLCCONF=0\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+    {
+        Error_Handler();
+    }
     espReconnect();
     updateTime();
+    updateLastTelemetryInfo();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
     //                                                             "Host: moscowtransport.app\r\n"
@@ -1097,7 +1207,7 @@ int main( void )
                         {
                             sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                            enableLed2ms();
+                            enableLed500ms();
                         }
                         states.cameraCountdown = true;
                         StartCountdown();
@@ -1112,7 +1222,7 @@ int main( void )
                             {
                                 sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
                                 SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                                enableLed2ms();
+                                enableLed500ms();
                             }
                         }
                         states.cameraDebugPattern = false;
@@ -1138,7 +1248,7 @@ int main( void )
         }
         if ( states.newDataRx )
         {
-            auto Recv { reinterpret_cast<RxData_T *>( UserRxBufferFS ) };
+            auto Recv { reinterpret_cast<rxData_T *>( UserRxBufferFS ) };
             TxData.cameraEnable = Recv->cameraEnabled;
             switch ( Recv->command )
             {
@@ -1171,7 +1281,7 @@ int main( void )
                     {
                         sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
                         SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                        enableLed2ms();
+                        enableLed500ms();
                     }
                     break;
             }
@@ -1183,6 +1293,10 @@ int main( void )
         if ( states.needCalibrateRTC )
         {
             updateTime();
+        }
+        if ( !lastTelemetry.ticksToOutdate )
+        {
+            updateLastTelemetryInfo();
         }
         /* USER CODE END WHILE */
 
@@ -1465,9 +1579,9 @@ static void MX_TIM3_Init( void )
 
     /* USER CODE END TIM3_Init 1 */
     htim3.Instance               = TIM3;
-    htim3.Init.Prescaler         = 1199;
+    htim3.Init.Prescaler         = 479;
     htim3.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    htim3.Init.Period            = 99;
+    htim3.Init.Period            = 62499;
     htim3.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
     htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if ( HAL_TIM_OC_Init( &htim3 ) != HAL_OK )
@@ -1495,6 +1609,42 @@ static void MX_TIM3_Init( void )
 }
 
 /**
+ * @brief TIM6 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM6_Init( void )
+{
+    /* USER CODE BEGIN TIM6_Init 0 */
+
+    /* USER CODE END TIM6_Init 0 */
+
+    TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+
+    /* USER CODE BEGIN TIM6_Init 1 */
+
+    /* USER CODE END TIM6_Init 1 */
+    htim6.Instance               = TIM6;
+    htim6.Init.Prescaler         = 1859;
+    htim6.Init.CounterMode       = TIM_COUNTERMODE_UP;
+    htim6.Init.Period            = 64515;
+    htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    if ( HAL_TIM_Base_Init( &htim6 ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode     = TIM_MASTERSLAVEMODE_DISABLE;
+    if ( HAL_TIMEx_MasterConfigSynchronization( &htim6, &sMasterConfig ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    /* USER CODE BEGIN TIM6_Init 2 */
+
+    /* USER CODE END TIM6_Init 2 */
+}
+
+/**
  * @brief TIM7 Initialization Function
  * @param None
  * @retval None
@@ -1511,9 +1661,9 @@ static void MX_TIM7_Init( void )
 
     /* USER CODE END TIM7_Init 1 */
     htim7.Instance               = TIM7;
-    htim7.Init.Prescaler         = 59999;
+    htim7.Init.Prescaler         = 4619;
     htim7.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    htim7.Init.Period            = 14999;
+    htim7.Init.Period            = 64934;
     htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
     if ( HAL_TIM_Base_Init( &htim7 ) != HAL_OK )
     {
