@@ -731,7 +731,7 @@ bool nightTestForBus() // by lights pattern
 
 bool inline testForBus()
 {
-    if ( TxData.avgLuminance < 12 )
+    if ( states.nightMode < 12 )
         return nightTestForBus();
     return dayTestForBus();
 }

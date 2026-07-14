@@ -131,15 +131,18 @@ void MainWindow::handleError( QSerialPort::SerialPortError error )
 {
     // if ( error == QSerialPort::SerialPortError::ResourceError && serial->isOpen() )
     // {
+    if(error == QSerialPort::NoError)
+        return;
+
     if ( serial->isOpen() )
     {
-        serial->close();
         if ( timer )
         {
             timer->stop();
             delete timer;
             timer = 0;
         }
+        serial->close();
     }
     // }
 }
