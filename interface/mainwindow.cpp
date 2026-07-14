@@ -131,13 +131,16 @@ void MainWindow::handleError( QSerialPort::SerialPortError error )
 {
     // if ( error == QSerialPort::SerialPortError::ResourceError && serial->isOpen() )
     // {
+    if ( serial->isOpen() )
+    {
+        serial->close();
         if ( timer )
         {
             timer->stop();
             delete timer;
             timer = 0;
         }
-        serial->close();
+    }
     // }
 }
 
@@ -252,9 +255,7 @@ void MainWindow::on_shootButton_clicked()
 
 void MainWindow::on_cameraCheckBox_clicked()
 {
-    txData.command        = TxCommand::aimingMode;
-    txData.cameraEnabled  = ui->cameraCheckBox->isChecked();
-    txData.additionalData = 0;
+    txData.cameraEnabled = ui->cameraCheckBox->isChecked();
 }
 
 void MainWindow::on_aecLineEdit_editingFinished()
