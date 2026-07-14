@@ -45,9 +45,6 @@ void MainWindow::handleScan()
 
 void MainWindow::readSerialData()
 {
-    static QElapsedTimer timer;
-    if ( !bytes.isEmpty() )
-        timer.restart();
     auto rD { serial->readAll() };
     if ( bytes.isEmpty() && rD.indexOf( "bgn" ) != 0 )
         return;
@@ -126,15 +123,14 @@ void MainWindow::readSerialData()
         ui->avgLabel->setText( QString::number( rxData->avgLuminance ) );
         QImage image( reinterpret_cast<const uint8_t *>( rxData->frame ), WIDTH, HEIGHT, QImage::Format_RGB16 );
         ui->label->setPixmap( QPixmap::fromImage( image ).scaled( ui->label->width(), ui->label->height(), Qt::KeepAspectRatio ) );
-        auto ms = timer.nsecsElapsed() / 1000;
         bytes.clear();
     }
 }
 
 void MainWindow::handleError( QSerialPort::SerialPortError error )
 {
-    if ( error == QSerialPort::SerialPortError::ResourceError && serial->isOpen() )
-    {
+    // if ( error == QSerialPort::SerialPortError::ResourceError && serial->isOpen() )
+    // {
         if ( timer )
         {
             timer->stop();
@@ -142,7 +138,7 @@ void MainWindow::handleError( QSerialPort::SerialPortError error )
             timer = 0;
         }
         serial->close();
-    }
+    // }
 }
 
 void MainWindow::handleClose()

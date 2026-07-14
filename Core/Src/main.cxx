@@ -1137,7 +1137,7 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    ESP8266_Send( "AT+CIPSSLSIZE=8192\r\n" );
+    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
@@ -1177,7 +1177,7 @@ int main( void )
     }
     espReconnect();
     updateTime();
-    updateLastTelemetryInfo();
+    // updateLastTelemetryInfo();
 
     // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
     //                                                             "Host: moscowtransport.app\r\n"
@@ -1294,10 +1294,10 @@ int main( void )
         {
             updateTime();
         }
-        if ( !lastTelemetry.ticksToOutdate )
-        {
-            updateLastTelemetryInfo();
-        }
+        // if ( !lastTelemetry.ticksToOutdate )
+        // {
+        //     updateLastTelemetryInfo();
+        // }
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
