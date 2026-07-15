@@ -58,6 +58,12 @@ bool ESP8266_DisableEcho()
     return ESP8266_Send( "ATE0\r\n" ) && ESP8266_Recv( "OK" );
 }
 
+bool ESP8266_IsConnectedToWifi() // status == 2 | 4
+{
+    uint8_t stat;
+    return ESP8266_Send( "AT+CIPSTATUS\r\n" ) && ESP8266_Recv( "OK" ) && sscanf( ESP_RX_buff, "STATUS:%c", &stat ) == 1 && stat % 2 == 0;
+}
+
 bool ESP8266_DisconnectFromWifi()
 {
     return ESP8266_Send( "AT+CWQAP\r\n" ) && ESP8266_Recv( "OK" );

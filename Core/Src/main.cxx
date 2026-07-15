@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fatfs.h"
+#include "mbedtls.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -1115,6 +1116,7 @@ int main( void )
     MX_TIM7_Init();
     MX_RTC_Init();
     MX_TIM6_Init();
+    MX_MBEDTLS_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
     if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )

@@ -30,6 +30,7 @@ bool ESP8266_DisableEcho();
 
 bool ESP8266_ConnectTo( const char *wifiName, const char *password );
 bool ESP8266_DisconnectFromWifi();
+bool ESP8266_IsConnectedToWifi();
 
 bool ESP8266_ConfigureNTP( bool enable, uint16_t timezone, const char *servers );
 bool ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const char *request );
