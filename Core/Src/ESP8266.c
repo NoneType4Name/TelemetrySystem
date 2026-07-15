@@ -44,6 +44,15 @@ bool ESP8266_EnableEcho()
     return ESP8266_Send( "ATE1\r\n" ) && ESP8266_Recv( "OK" );
 }
 
+bool ESP8266_ConfigureNTP( bool enable, uint16_t timezone, const char *servers )
+{
+    if ( enable )
+        sprintf( ESP_TX_buff, "AT+CIPSNTPCFG=1,%d,%s\r\n", timezone, servers );
+    else
+        sprintf( ESP_TX_buff, "AT+CIPSNTPCFG=0" );
+    return ESP8266_Send( ESP_TX_buff ) && ESP8266_Recv( "OK" );
+}
+
 bool ESP8266_DisableEcho()
 {
     return ESP8266_Send( "ATE0\r\n" ) && ESP8266_Recv( "OK" );

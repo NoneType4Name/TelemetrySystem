@@ -1133,6 +1133,7 @@ int main( void )
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
     ESP8266_ON();
+    ESP8266_DisableEcho();
     ESP8266_Send( "AT+CWMODE=1\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
@@ -1176,16 +1177,17 @@ int main( void )
         Error_Handler();
     }
     espReconnect();
+    ESP8266_ConfigureNTP( 1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
     updateTime();
     // updateLastTelemetryInfo();
 
-    // if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-    //                                                             "Host: moscowtransport.app\r\n"
-    //                                                             "User-Agent: ESP8266\r\n"
-    //                                                             "Accept: application/json\r\n"
-    //                                                             "Connection: close\r\n" ) )
+    if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                                                                "Host: moscowtransport.app\r\n"
+                                                                "User-Agent: ESP8266\r\n"
+                                                                "Accept: application/json\r\n"
+                                                                "Connection: close\r\n" ) )
 
-    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ), WIDTH * HEIGHT / 2 );
+        HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
