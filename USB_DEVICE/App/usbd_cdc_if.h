@@ -32,7 +32,6 @@ extern "C"
 #include "usbd_cdc.h"
 
 /* USER CODE BEGIN INCLUDE */
-#include <stdbool.h>
 
 /* USER CODE END INCLUDE */
 

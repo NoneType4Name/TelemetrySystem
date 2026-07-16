@@ -11,7 +11,7 @@
             "cwd": "${workspaceRoot}",
             "servertype": "openocd",
             "executable": "${command:cmake.launchTargetPath}",
-            "svdFile": "STM32H750.svd",
+            "svdFile": "STM32H743.svd",
             "configFiles": [
                 "interface/stlink.cfg",
                 "target/stm32h7x.cfg"

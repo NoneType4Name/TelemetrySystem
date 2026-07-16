@@ -9,9 +9,9 @@
  * Copyright (c) 2025 STMicroelectronics.
  * All rights reserved.
  *
- * This software is licensed under terms that can be found in the LICENSE FatFsFile
- * in the root directory of this software component.
- * If no LICENSE FatFsFile comes with this software, it is provided AS-IS.
+ * This software is licensed under terms that can be found in the LICENSE
+ *FatFsFile in the root directory of this software component. If no LICENSE
+ *FatFsFile comes with this software, it is provided AS-IS.
  *
  ******************************************************************************
  */
@@ -25,23 +25,23 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "driver_ov2640.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ssl.h"
+#include "ov2640_basic.h"
+#include "stm32h7xx_hal_gpio.h"
+#include "usbd_cdc_if.h"
 #include <array>
 #include <bitset>
 #include <cstdint>
 #include <cstdlib>
-#include <stdint.h>
-#include "ov2640_basic.h"
-#include "stm32h750xx.h"
-#include "stm32h7xx_hal_gpio.h"
-#include "usbd_cdc_if.h"
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/time.h>
 #include <time.h>
 #include <vector>
-#include <sys/time.h>
-#include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
+
 // #include "TestImage.h"
 extern "C"
 {
@@ -219,6 +219,8 @@ void SystemClock_Config( void );
 static void MPU_Config( void );
 static void MX_GPIO_Init( void );
 static void MX_DMA_Init( void );
+static void MX_SDMMC1_SD_Init( void );
+static void MX_DCMI_Init( void );
 static void MX_I2C1_Init( void );
 static void MX_USART3_UART_Init( void );
 static void MX_TIM3_Init( void );
@@ -281,8 +283,9 @@ void HAL_DCMI_FrameEventCallback( DCMI_HandleTypeDef *hdcmi )
     //     yblock = ( TxData.y + HEIGHT ) / ( 1200 / 4 );
     // }
     // zones.set( ( yblock * 4 + ( TxData.x + WIDTH ) / ( 1600 / 4 ) ) * 2, 1 );
-    // zones.set( ( yblock * 4 + ( TxData.x + WIDTH ) / ( 1600 / 4 ) ) * 2 + 1, 1 );
-    // ov2640_set_16_zone_average_weight_option( &gs_handle, zones.to_ulong() );
+    // zones.set( ( yblock * 4 + ( TxData.x + WIDTH ) / ( 1600 / 4 ) ) * 2 + 1, 1
+    // ); ov2640_set_16_zone_average_weight_option( &gs_handle, zones.to_ulong()
+    // );
     if ( !states.autoExp )
         // {
         // ov2640_set_exposure_control( &gs_handle, OV2640_CONTROL_MANUAL );
@@ -361,10 +364,12 @@ void getAverageLuminance()
     TxData.avgLuminance = avgSum / ( WIDTH * HEIGHT );
     avgSum              = 0;
     // float predict_error = kalmanState.errorCovar + kalmanState.processNoise;
-    // float kalman_gain   = predict_error / ( predict_error + kalmanState.measureNoise );
+    // float kalman_gain   = predict_error / ( predict_error +
+    // kalmanState.measureNoise );
 
-    // kalmanState.estimate   = kalmanState.estimate + kalman_gain * ( measurement - kalmanState.estimate );
-    // kalmanState.errorCovar = ( 1.0f - kalman_gain ) * predict_error;
+    // kalmanState.estimate   = kalmanState.estimate + kalman_gain * ( measurement
+    // - kalmanState.estimate ); kalmanState.errorCovar = ( 1.0f - kalman_gain ) *
+    // predict_error;
 
     // TxData.avgLuminance = ( uint8_t ) ( kalmanState.estimate + 0.5f );
 }
@@ -426,10 +431,14 @@ HSL_t rgbToHSL( pixel_T p )
     uint8_t min = r;
     uint8_t max = r;
 
-    if ( g < min ) min = g;
-    if ( b < min ) min = b;
-    if ( g > max ) max = g;
-    if ( b > max ) max = b;
+    if ( g < min )
+        min = g;
+    if ( b < min )
+        min = b;
+    if ( g > max )
+        max = g;
+    if ( b > max )
+        max = b;
 
     uint16_t delta = max - min;
 
@@ -468,7 +477,8 @@ HSL_t rgbToHSL( pixel_T p )
             hue = ( 60 * ( r - g ) ) / delta + 240;
         }
 
-        if ( hue < 0 ) hue += 360;
+        if ( hue < 0 )
+            hue += 360;
 
         result.h = ( uint16_t ) ( hue % 360 );
     }
@@ -479,21 +489,26 @@ HSL_t rgbToHSL( pixel_T p )
 bool isRed( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
-    return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
+    return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) &&
+           ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
     // uint8_t r = RGB565_R( pixel );
     // uint8_t g = RGB565_G( pixel ) >> 1;
     // uint8_t b = RGB565_B( pixel );
-    // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
+    // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g )
+    // < 10 ); // g~b(d:10), r-b>20
 }
 
 bool isYellow( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
-    return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
+    return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) &&
+           ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
     // uint8_t r = RGB565_R( pixel );
     // uint8_t g = RGB565_G( pixel ) >> 1;
     // uint8_t b = RGB565_B( pixel );
-    // return ( ( ( r > g && r - g < ( 50 * 31 / 255 ) ) || ( r <= g && g - r < 15 ) ) && b < ( r < g ? r : g ) && g - ( r < g ? r : g ) > ( 50 * 31 / 255 ) ); // r >> g || r < g (d:50 || 15), b < min(r, g) (d:50+)
+    // return ( ( ( r > g && r - g < ( 50 * 31 / 255 ) ) || ( r <= g && g - r < 15
+    // ) ) && b < ( r < g ? r : g ) && g - ( r < g ? r : g ) > ( 50 * 31 / 255 )
+    // ); // r >> g || r < g (d:50 || 15), b < min(r, g) (d:50+)
 }
 
 // bool inline isLight( uint16_t pixel )
@@ -501,19 +516,23 @@ bool isYellow( pixel_T pixel )
 //     uint8_t r = RGB565_R( pixel );
 //     uint8_t g = RGB565_G( pixel ) >> 1;
 //     uint8_t b = RGB565_B( pixel );
-//     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && ( abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g (d<25)
-//     uint8_t avg = ( r + b + g ) / 3;
-//     return avg > 6 && pixel != 0xf800 && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
+//     // return ( b > ( 0 * 31 / 255 ) ) && ( b + ( 30 * 31 / 255 ) < r ) && (
+//     abs( r - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ); // b > 10, r > b + 50, r ~ g
+//     (d<25) uint8_t avg = ( r + b + g ) / 3; return avg > 6 && pixel != 0xf800
+//     && pixel != 0x07e0; // (r+g+b) / 3 > 20 (rgb565)
 // }
 
 bool isLightBlue( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
-    return ( ( hsl.h > 170 ) && ( hsl.h < 220 ) ) && ( hsl.s > ( uint8_t ) ( .04f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .25f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .95f * 63 ) ) );
+    return ( ( hsl.h > 170 ) && ( hsl.h < 220 ) ) && ( hsl.s > ( uint8_t ) ( .04f * 63 ) ) &&
+           ( ( hsl.l > ( uint8_t ) ( .25f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .95f * 63 ) ) );
     // uint8_t r = RGB565_R( pixel );
     // uint8_t g = RGB565_G( pixel ) >> 1;
     // uint8_t b = RGB565_B( pixel );
-    // return true && ( b > ( 80 * 31 / 255 ) ) && ( b >= g ) && ( ( int ) b - g < ( 58 * 31 / 255 ) ) && ( b > r ) && ( ( int ) g - r < ( 32 * 31 / 255 ) ); // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
+    // return true && ( b > ( 80 * 31 / 255 ) ) && ( b >= g ) && ( ( int ) b - g <
+    // ( 58 * 31 / 255 ) ) && ( b > r ) && ( ( int ) g - r < ( 32 * 31 / 255 ) );
+    // // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
 }
 
 bool isGrey( uint16_t pixel )
@@ -521,10 +540,15 @@ bool isGrey( uint16_t pixel )
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
     uint8_t b = RGB565_B( pixel );
-    return true && ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
+    return true && ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) &&
+           ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) &&
+           ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) &&
+           b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
-std::array<uint16_t, 3> fillColorPattern( uint16_t leftUpPixelInd, bool nightMode ) // [left up corner, right down corner, count]
+std::array<uint16_t, 3>
+    fillColorPattern( uint16_t leftUpPixelInd,
+                      bool nightMode ) // [left up corner, right down corner, count]
 {
     std::vector<uint16_t> stack { leftUpPixelInd };
     // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
@@ -552,7 +576,8 @@ std::array<uint16_t, 3> fillColorPattern( uint16_t leftUpPixelInd, bool nightMod
         {
             for ( int8_t dx = -3; dx <= 3; dx++ )
             {
-                if ( dx == 0 && dy == 0 ) continue;
+                if ( dx == 0 && dy == 0 )
+                    continue;
 
                 int16_t nx = x + dx;
                 int16_t ny = y + dy;
@@ -561,19 +586,24 @@ std::array<uint16_t, 3> fillColorPattern( uint16_t leftUpPixelInd, bool nightMod
                 if ( nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT )
                 {
                     uint16_t nidx = ny * WIDTH + nx;
-                    if ( !pixelVisited.test( nidx ) && ( nightMode ? ( red ? ( isRed( TxData.frame[ nidx ] ) ) : ( isYellow( TxData.frame[ nidx ] )
-                                                                                                                   //  || isLight( frameBuffers[ 0 ][ nidx ] )
-                                                                                                                   ) )
-                                                                   : isLightBlue( TxData.frame[ nidx ] ) ) )
+                    if ( !pixelVisited.test( nidx ) &&
+                         ( nightMode ? ( red ? ( isRed( TxData.frame[ nidx ] ) )
+                                             : ( isYellow( TxData.frame[ nidx ] )
+                                                 //  || isLight( frameBuffers[ 0 ][ nidx ] )
+                                                 ) )
+                                     : isLightBlue( TxData.frame[ nidx ] ) ) )
                     {
                         pixelVisited.set( nidx );
                         // frameBuffers[ 0 ][ nidx ] = 0x07e0;
                         ++filled;
                         uint8_t px = GET_X( nidx );
                         uint8_t py = GET_Y( nidx );
-                        if ( px > maxX ) maxX = px;
-                        if ( py > maxY ) maxY = py;
-                        if ( px < minX ) minX = px;
+                        if ( px > maxX )
+                            maxX = px;
+                        if ( py > maxY )
+                            maxY = py;
+                        if ( px < minX )
+                            minX = px;
                         if ( py < minY )
                             minY = py;
                         stack.emplace_back( nidx );
@@ -583,7 +613,8 @@ std::array<uint16_t, 3> fillColorPattern( uint16_t leftUpPixelInd, bool nightMod
         }
     }
 
-    return { static_cast<uint16_t>( minX + minY * WIDTH ), static_cast<uint16_t>( maxX + maxY * WIDTH ), filled };
+    return { static_cast<uint16_t>( minX + minY * WIDTH ),
+             static_cast<uint16_t>( maxX + maxY * WIDTH ), filled };
 }
 
 bool inline dayTestForBus()
@@ -594,8 +625,11 @@ bool inline dayTestForBus()
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
-            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g + ( TxData.frame[ leftP ].b << 1 ) ) / 3;
-            if ( true && !pixelVisited.test( w + h * WIDTH ) && isLightBlue( TxData.frame[ leftP ] ) )
+            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g +
+                        ( TxData.frame[ leftP ].b << 1 ) ) /
+                      3;
+            if ( true && !pixelVisited.test( w + h * WIDTH ) &&
+                 isLightBlue( TxData.frame[ leftP ] ) )
             {
                 auto rightP     = fillColorPattern( leftP, 0 );
                 leftP           = rightP[ 0 ];
@@ -607,7 +641,10 @@ bool inline dayTestForBus()
                     if ( dh > 12 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( ( square > 3000 && ( d > 2.f && d < 4.f ) ) || ( d > 4.f && d < 8.5f ) ) // (square > 3000 -> ratio in range 2-3 - bus | 1000 < square < 3000 -> ratio ~ 4-6.5f - roof of bus) #experemental
+                        if ( ( square > 3000 && ( d > 2.f && d < 4.f ) ) ||
+                             ( d > 4.f && d < 8.5f ) ) // (square > 3000 -> ratio in range 2-3 -
+                                                       // bus | 1000 < square < 3000 -> ratio ~
+                                                       // 4-6.5f - roof of bus) #experemental
                         {
                             if ( ++countLightBluePattern > 1 )
                                 states.cameraDebugPattern = true;
@@ -615,20 +652,28 @@ bool inline dayTestForBus()
                         else
                             states.cameraDebugPattern = true;
                     }
-                    for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
+                    for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 );
+                          x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1
+                                                                  : WIDTH - 1 );
+                          ++x )
                     {
                         if ( GET_Y( leftP ) > 0 )
                             TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = pixel_T { 31, 0, 0 };
                         if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                            TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = pixel_T { 31, 0, 0 };
+                            TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] =
+                                pixel_T { 31, 0, 0 };
                     }
 
-                    for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
+                    for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 );
+                          y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1
+                                                                   : HEIGHT - 1 );
+                          ++y )
                     {
                         if ( GET_X( leftP ) > 0 )
                             TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = pixel_T { 31, 0, 0 };
                         if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                            TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = pixel_T { 31, 0, 0 };
+                            TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] =
+                                pixel_T { 31, 0, 0 };
                     }
                 }
             }
@@ -651,11 +696,14 @@ bool nightTestForBus() // by lights pattern
         for ( uint16_t w { 0 }; w < WIDTH; ++w )
         {
             uint16_t leftP = w + h * WIDTH;
-            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g + ( TxData.frame[ leftP ].b << 1 ) ) / 3;
+            avgSum += ( ( TxData.frame[ leftP ].r << 1 ) + TxData.frame[ leftP ].g +
+                        ( TxData.frame[ leftP ].b << 1 ) ) /
+                      3;
             bool red { isRed( TxData.frame[ leftP ] ) };
-            if ( !pixelVisited.test( w + h * WIDTH ) && ( isYellow( TxData.frame[ leftP ] )
-                                                          // || isLight( frameBuffers[ 0 ][ leftP ] )
-                                                          || red ) )
+            if ( !pixelVisited.test( w + h * WIDTH ) &&
+                 ( isYellow( TxData.frame[ leftP ] )
+                   // || isLight( frameBuffers[ 0 ][ leftP ] )
+                   || red ) )
             {
                 auto rightP     = fillColorPattern( leftP, 1 );
                 leftP           = rightP[ 0 ];
@@ -676,7 +724,8 @@ bool nightTestForBus() // by lights pattern
                 {
                     if ( square > 5 )
                     {
-                        if ( square > 40 ) states.cameraDebugPattern = true;
+                        if ( square > 40 )
+                            states.cameraDebugPattern = true;
                         if ( dh < 4 )
                         {
                             float d = ( ( float ) ( dw ) / dh );
@@ -702,20 +751,28 @@ bool nightTestForBus() // by lights pattern
                 continue;
             drawRect:
             {
-                for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 ); x <= ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 ); ++x )
+                for ( size_t x = ( GET_X( leftP ) > 0 ? GET_X( leftP ) - 1 : 0 );
+                      x <=
+                      ( GET_X( rightP[ 1 ] ) + 1 < WIDTH ? GET_X( rightP[ 1 ] ) + 1 : WIDTH - 1 );
+                      ++x )
                 {
                     if ( GET_Y( leftP ) > 0 )
                         TxData.frame[ ( GET_Y( leftP ) - 1 ) * WIDTH + x ] = pixel_T { 0, 63, 0 };
                     if ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT )
-                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] = pixel_T { 0, 63, 0 };
+                        TxData.frame[ ( GET_Y( rightP[ 1 ] ) + 1 ) * WIDTH + x ] =
+                            pixel_T { 0, 63, 0 };
                 }
 
-                for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 ); y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1 : HEIGHT - 1 ); ++y )
+                for ( size_t y = ( GET_Y( leftP ) > 0 ? GET_Y( leftP ) - 1 : 0 );
+                      y <= ( GET_Y( rightP[ 1 ] ) + 1 < HEIGHT ? GET_Y( rightP[ 1 ] ) + 1
+                                                               : HEIGHT - 1 );
+                      ++y )
                 {
                     if ( GET_X( leftP ) > 0 )
                         TxData.frame[ y * WIDTH + ( GET_X( leftP ) - 1 ) ] = pixel_T { 0, 63, 0 };
                     if ( GET_X( rightP[ 1 ] ) + 1 < WIDTH )
-                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] = pixel_T { 0, 63, 0 };
+                        TxData.frame[ y * WIDTH + ( GET_X( rightP[ 1 ] ) + 1 ) ] =
+                            pixel_T { 0, 63, 0 };
                 }
             }
             }
@@ -725,7 +782,8 @@ bool nightTestForBus() // by lights pattern
     //     states.cameraDebugPattern = true;
     if ( countLightsPattern )
     {
-        if ( YellowX > RedX && YellowX - RedX > 90 && YellowX - RedX < 110 ) // 90 < bus width < 110
+        if ( YellowX > RedX && YellowX - RedX > 90 &&
+             YellowX - RedX < 110 ) // 90 < bus width < 110
             return true;
         else if ( redLigthCount > 1 )
         {
@@ -795,24 +853,24 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
 
 #pragma pack( pop )
     BMPFileHeader = {
-        .file_type   = 0x4D42,
-        .file_size   = static_cast<uint32_t>( sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 + data_size ),
+        .file_type = 0x4D42,
+        .file_size = static_cast<uint32_t>(
+            sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 + data_size ),
         .reserved1   = 0,
         .reserved2   = 0,
         .offset_data = sizeof( BMPFileHeader ) + sizeof( BMPInfoHeader ) + 12 };
 
-    BMPInfoHeader = {
-        .size               = sizeof( BMPInfoHeader ),
-        .width              = WIDTH,
-        .height             = HEIGHT,
-        .planes             = 1,
-        .bit_count          = 16,
-        .compression        = 3,
-        .size_image         = data_size,
-        .x_pixels_per_meter = 0,
-        .y_pixels_per_meter = 0,
-        .colors_used        = 0,
-        .colors_important   = 0 };
+    BMPInfoHeader = { .size               = sizeof( BMPInfoHeader ),
+                      .width              = WIDTH,
+                      .height             = HEIGHT,
+                      .planes             = 1,
+                      .bit_count          = 16,
+                      .compression        = 3,
+                      .size_image         = data_size,
+                      .x_pixels_per_meter = 0,
+                      .y_pixels_per_meter = 0,
+                      .colors_used        = 0,
+                      .colors_important   = 0 };
 
     result = f_open( &FatFsFile, filename, FA_WRITE | FA_CREATE_ALWAYS );
     if ( result != FR_OK )
@@ -821,7 +879,8 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
     }
 
     // Запись File Header
-    result = f_write( &FatFsFile, &BMPFileHeader, sizeof( BMPFileHeader ), &bytes_written );
+    result = f_write( &FatFsFile, &BMPFileHeader, sizeof( BMPFileHeader ),
+                      &bytes_written );
     if ( result != FR_OK || bytes_written != sizeof( BMPFileHeader ) )
     {
         f_close( &FatFsFile );
@@ -829,7 +888,8 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
     }
 
     // Запись Info Header
-    result = f_write( &FatFsFile, &BMPInfoHeader, sizeof( BMPInfoHeader ), &bytes_written );
+    result = f_write( &FatFsFile, &BMPInfoHeader, sizeof( BMPInfoHeader ),
+                      &bytes_written );
     if ( result != FR_OK || bytes_written != sizeof( BMPInfoHeader ) )
     {
         f_close( &FatFsFile );
@@ -840,7 +900,8 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
         0x07E0, // Green mask (6 bits)
         0x001F  // Blue mask (5 bits)
     };
-    result = f_write( &FatFsFile, rgb565_masks, sizeof( rgb565_masks ), &bytes_written );
+    result =
+        f_write( &FatFsFile, rgb565_masks, sizeof( rgb565_masks ), &bytes_written );
     if ( result != FR_OK || bytes_written != sizeof( rgb565_masks ) )
     {
         f_close( &FatFsFile );
@@ -852,7 +913,8 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
 
     for ( int y { HEIGHT - 1 }; y >= 0; y-- )
     {
-        result = f_write( &FatFsFile, &TxData.frame[ y * WIDTH ], WIDTH * 2, &bytes_written );
+        result = f_write( &FatFsFile, &TxData.frame[ y * WIDTH ], WIDTH * 2,
+                          &bytes_written );
         if ( result != FR_OK || bytes_written != ( UINT ) ( WIDTH * 2 ) )
         {
             f_close( &FatFsFile );
@@ -874,8 +936,10 @@ void SaveImageBMP( const char *filename, const uint8_t *buffer, UINT len )
     RTC_DateTypeDef sDate;
     HAL_RTC_GetTime( &hrtc, &sTime, RTC_FORMAT_BIN );
     HAL_RTC_GetDate( &hrtc, &sDate, RTC_FORMAT_BIN );
-    fData.fdate = ( WORD ) ( ( ( 2000 + sDate.Year - 1980 ) << 9 ) | ( sDate.Month << 5 ) | sDate.Date );
-    fData.ftime = ( WORD ) ( ( sTime.Hours << 11 ) | ( sTime.Minutes << 5 ) | ( sTime.Seconds >> 1 ) );
+    fData.fdate = ( WORD ) ( ( ( 2000 + sDate.Year - 1980 ) << 9 ) | ( sDate.Month << 5 ) |
+                             sDate.Date );
+    fData.ftime =
+        ( WORD ) ( ( sTime.Hours << 11 ) | ( sTime.Minutes << 5 ) | ( sTime.Seconds >> 1 ) );
     f_close( &FatFsFile );
     f_utime( filename, &fData );
     f_sync( &FatFsFile );
@@ -929,7 +993,8 @@ bool addNewRecord( uint32_t writeNum )
     }
 
     char record[ 32 ];
-    sprintf( record, "%d,%lld,%lld,%i,%i\n", writeNum, lastTelemetry.timeByShedule, RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode );
+    sprintf( record, "%d,%lld,%lld,%i,%i\n", writeNum, lastTelemetry.timeByShedule,
+             RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode );
     f_write( &FatFsFile, record, sizeof( record ), &bytes_read );
     f_sync( &FatFsFile );
     f_close( &FatFsFile );
@@ -957,17 +1022,25 @@ void updateTime()
 {
     while ( 1 )
     {
-        if ( ESP8266_SendRequest( "SSL", "tools.aimylogic.com", 443, "GET /api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u HTTP/1.1\r\n"
-                                                                     "Host: tools.aimylogic.com\r\n"
-                                                                     "User-Agent: ESP8266\r\n"
-                                                                     "Accept: application/json\r\n"
-                                                                     "Connection: close\r\n" ) )
+        if ( ESP8266_SendRequest(
+                 "SSL", "tools.aimylogic.com", 443,
+                 "GET /api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u "
+                 "HTTP/1.1\r\n"
+                 "Host: tools.aimylogic.com\r\n"
+                 "User-Agent: ESP8266\r\n"
+                 "Accept: application/json\r\n"
+                 "Connection: close\r\n" ) )
         {
-            auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
+            auto d =
+                strstr( strstr( ESP8266_GetResponse( 5000 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
             if ( d )
             {
                 uint8_t day, month, year, hour, minute, second, dayOfWeek;
-                auto s = sscanf( d, "{\"timezone\":\"Europe/Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"", ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour, ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek );
+                auto s = sscanf( d,
+                                 "{\"timezone\":\"Europe/"
+                                 "Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"",
+                                 ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour,
+                                 ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek );
                 if ( s == 7 )
                 {
                     RTC_TimeTypeDef cTime { hour, minute, second };
@@ -992,7 +1065,10 @@ void updateLastTelemetryInfo()
     {
         if ( ESP8266_IsConnectedToWifi() )
         {
-            if ( ( ESP8266_Send( "AT+CIPMODE=1\r\n" ) && ESP8266_Recv( "OK" ) ) && ( ESP8266_Send( "AT+CIPSTART=\"TCP\",\"moscowtransport.app\",443\r\n" ) && ESP8266_Recv( "OK" ) ) )
+            if ( ( ESP8266_Send( "AT+CIPMODE=1\r\n" ) && ESP8266_Recv( "OK" ) ) &&
+                 ( ESP8266_Send(
+                       "AT+CIPSTART=\"TCP\",\"moscowtransport.app\",443\r\n" ) &&
+                   ESP8266_Recv( "OK" ) ) )
             {
                 if ( ( ESP8266_Send( "AT+CIPSEND\r\n" ) && ESP8266_Recv( ">" ) ) )
                 {
@@ -1001,23 +1077,30 @@ void updateLastTelemetryInfo()
 
                     if ( ( mbedtls_ssl_handshake( &sslCtx ) ) == 0 )
                     {
-                        sprintf( ESP_TX_buff, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                                              "Host: moscowtransport.app\r\n"
-                                              "User-Agent: ESP8266\r\n"
-                                              "Accept: application/json\r\n"
-                                              "Connection: close\r\n"
-                                              "\r\n" );
-                        mbedtls_ssl_write( &sslCtx, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
+                        sprintf( ESP_TX_buff,
+                                 "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 "
+                                 "HTTP/1.1\r\n"
+                                 "Host: moscowtransport.app\r\n"
+                                 "User-Agent: ESP8266\r\n"
+                                 "Accept: application/json\r\n"
+                                 "Connection: close\r\n"
+                                 "\r\n" );
+                        mbedtls_ssl_write( &sslCtx, ( uint8_t * ) ESP_TX_buff,
+                                           strlen( ESP_TX_buff ) );
                         ESP8266_ClearRecvBuff();
-                        if ( mbedtls_ssl_read( &sslCtx, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
+                        if ( mbedtls_ssl_read( &sslCtx, ( uint8_t * ) ESP_RX_buff,
+                                               sizeof( ESP_RX_buff ) - 1 ) )
                         {
-                            auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
+                            auto d =
+                                strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
                             if ( d )
                             {
                                 uint16_t remainedTime;
                                 bool telemetry;
                                 uint32_t tmId;
-                                auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
+                                auto s =
+                                    sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,",
+                                            ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
                                 if ( s == 3 )
                                 {
                                     if ( remainedTime > 5 * 60 )
@@ -1026,12 +1109,14 @@ void updateLastTelemetryInfo()
                                     }
                                     else
                                     {
-                                        lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
+                                        lastTelemetry.ticksToOutdate =
+                                            remainedTime / 2 + 3 * 60 / 2;
                                     }
                                     HAL_TIM_Base_Start_IT( &htim6 );
-                                    lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
-                                    lastTelemetry.byTelemetry   = telemetry;
-                                    lastTelemetry.tmId          = tmId;
+                                    lastTelemetry.timeByShedule =
+                                        RTC_Unix_Timestamp() + remainedTime;
+                                    lastTelemetry.byTelemetry = telemetry;
+                                    lastTelemetry.tmId        = tmId;
                                     return;
                                 }
                             }
@@ -1040,19 +1125,26 @@ void updateLastTelemetryInfo()
                     }
                     mbedtls_ssl_session_reset( &sslCtx );
                 }
-                // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                //                                                              "Host: moscowtransport.app\r\n"
-                //                                                              "User-Agent: ESP8266\r\n"
-                //                                                              "Connection: close\r\n" ) )
+                // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET
+                // /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                //                                                              "Host:
+                //                                                              moscowtransport.app\r\n"
+                //                                                              "User-Agent:
+                //                                                              ESP8266\r\n"
+                //                                                              "Connection:
+                //                                                              close\r\n"
+                //                                                              ) )
                 // {
-                //     auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "externalForecast" ), "\"time" );
-                //     if ( d )
+                //     auto d = strstr( strstr( ESP8266_GetResponse( 5000 ),
+                //     "externalForecast" ), "\"time" ); if ( d )
                 //     {
                 //         uint16_t remainedTime;
                 //         bool telemetry;
                 //         uint32_t tmId;
-                //         auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
-                //         if ( s == 3 )
+                //         auto s = sscanf( d,
+                //         "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * )
+                //         &remainedTime, ( int * ) &telemetry, ( &tmId ) ); if ( s == 3
+                //         )
                 //         {
                 //             if ( remainedTime > 5 * 60 )
                 //             {
@@ -1060,11 +1152,12 @@ void updateLastTelemetryInfo()
                 //             }
                 //             else
                 //             {
-                //                 lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
+                //                 lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 *
+                //                 60 / 2;
                 //             }
                 //             HAL_TIM_Base_Start_IT( &htim6 );
-                //             lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
-                //             lastTelemetry.byTelemetry   = telemetry;
+                //             lastTelemetry.timeByShedule = RTC_Unix_Timestamp() +
+                //             remainedTime; lastTelemetry.byTelemetry   = telemetry;
                 //             lastTelemetry.tmId          = tmId;
                 //             return;
                 //         }
@@ -1100,13 +1193,16 @@ void aecAutoControl()
     }
     else
     {
-        if ( TxData.avgLuminance > OV2640_BASIC_DEFAULT_LUMINANCE_LOW && TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_HIGH )
+        if ( TxData.avgLuminance > OV2640_BASIC_DEFAULT_LUMINANCE_LOW &&
+             TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_HIGH )
             return;
         if ( aecControl.ticksToChange && --aecControl.ticksToChange )
             return;
         aecControl.ticksToChange = 3;
-        uint8_t target           = ( OV2640_BASIC_DEFAULT_LUMINANCE_LOW + OV2640_BASIC_DEFAULT_LUMINANCE_HIGH ) / 2;
-        int16_t error            = TxData.avgLuminance - target;
+        uint8_t target           = ( OV2640_BASIC_DEFAULT_LUMINANCE_LOW +
+                           OV2640_BASIC_DEFAULT_LUMINANCE_HIGH ) /
+                         2;
+        int16_t error = TxData.avgLuminance - target;
 
         int16_t absError   = ( error < 0 ) ? -error : error;
         int16_t scaledStep = ( absError * aecControl.stepSize ) / 10;
@@ -1123,7 +1219,8 @@ void aecAutoControl()
             newAec = 1;
         if ( newAec > 200 )
         {
-            if ( TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_LOW && !states.nightMode )
+            if ( TxData.avgLuminance < OV2640_BASIC_DEFAULT_LUMINANCE_LOW &&
+                 !states.nightMode )
             {
                 states.nightMode = true;
             }
@@ -1197,17 +1294,17 @@ int main( void )
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_SDMMC1_SD_Init();
-    MX_FATFS_Init();
     MX_DCMI_Init();
     MX_I2C1_Init();
-    MX_USB_DEVICE_Init();
     MX_USART3_UART_Init();
     MX_TIM3_Init();
     MX_TIM7_Init();
     MX_RTC_Init();
     MX_TIM6_Init();
-    MX_MBEDTLS_Init();
     MX_RNG_Init();
+    MX_MBEDTLS_Init();
+    MX_FATFS_Init();
+    MX_USB_DEVICE_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
     if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
@@ -1221,7 +1318,8 @@ int main( void )
     ov2640_set_awb( &gs_handle, OV2640_BOOL_TRUE );
     ov2640_set_awb_gain( &gs_handle, OV2640_BOOL_TRUE );
 
-    // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
+    // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID,
+    // HAL_DMA_CpltCallback );
 
     // init mbedtls
 
@@ -1232,22 +1330,30 @@ int main( void )
 
     mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
 
-    mbedtls_ssl_config_defaults( &sslConf,
-                                 MBEDTLS_SSL_IS_CLIENT,
+    mbedtls_ssl_config_defaults( &sslConf, MBEDTLS_SSL_IS_CLIENT,
                                  MBEDTLS_SSL_TRANSPORT_STREAM,
                                  MBEDTLS_SSL_PRESET_DEFAULT );
 
     mbedtls_ssl_conf_authmode( &sslConf, MBEDTLS_SSL_VERIFY_NONE );
     mbedtls_ssl_conf_rng( &sslConf, mbedtls_ctr_drbg_random, &ctr_drbg );
 
-    mbedtls_ssl_set_bio( &sslCtx, &huart3, []( void *huart, const uint8_t *data, size_t len ) -> int
-                         {HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 ) ;
-                            return len; }, []( void *huart, uint8_t *data, size_t len ) -> int
-                         { ESP_TX_buff[200] = HAL_UART_Receive((UART_HandleTypeDef*)huart, data, len, 1000);
-                            if(ESP_TX_buff[200])
-                                return 0;
-                            else
-                                return len; }, NULL );
+    mbedtls_ssl_set_bio(
+        &sslCtx, &huart3,
+        []( void *huart, const uint8_t *data, size_t len ) -> int
+        {
+            HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 );
+            return len;
+        },
+        []( void *huart, uint8_t *data, size_t len ) -> int
+        {
+            ESP_TX_buff[ 200 ] =
+                HAL_UART_Receive( ( UART_HandleTypeDef * ) huart, data, len, 1000 );
+            if ( ESP_TX_buff[ 200 ] )
+                return 0;
+            else
+                return len;
+        },
+        NULL );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -1264,20 +1370,24 @@ int main( void )
     // ESP8266_Send( "AT+FS=OPEN,\"/ca.pem\",\"w\"\r\n" );
     // if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=512\r\n-----BEGIN CERTIFICATE-----\nMIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx\nPzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu\nZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg\nQ0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS\nVTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg\nYW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v\ndCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n\nqqE0Zp52selXsKGFYoG0G)" );
-    // if ( !ESP8266_Recv( "OK" ) )
+    // ESP8266_Send( R"(AT+CIPSEND=512\r\n-----BEGIN
+    // CERTIFICATE-----\nMIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx\nPzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu\nZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg\nQ0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS\nVTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg\nYW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v\ndCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n\nqqE0Zp52selXsKGFYoG0G)"
+    // ); if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=512\r\nM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q\nXBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U\nzn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX\nYwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y\nBer/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD\nU+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD\n4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9\nG8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH\nBLa52)" );
-    // if ( !ESP8266_Recv( "OK" ) )
+    // ESP8266_Send(
+    // R"(AT+CIPSEND=512\r\nM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q\nXBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U\nzn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX\nYwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y\nBer/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD\nU+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD\n4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9\nG8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH\nBLa52)"
+    // ); if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=512\r\n/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX\nePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa\nOiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf\nBKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS\nBgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF\nAAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH\ntmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq\nW9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMR)" );
-    // if ( !ESP8266_Recv( "OK" ) )
+    // ESP8266_Send(
+    // R"(AT+CIPSEND=512\r\n/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX\nePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa\nOiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf\nBKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS\nBgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF\nAAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH\ntmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq\nW9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMR)"
+    // ); if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=512\r\nl1JbW2bM+\n/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS\nAQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj\nC/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV\n4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d\nWN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ\nD9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC\nEYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq\n391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4G)" );
-    // if ( !ESP8266_Recv( "OK" ) )
+    // ESP8266_Send(
+    // R"(AT+CIPSEND=512\r\nl1JbW2bM+\n/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS\nAQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj\nC/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV\n4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d\nWN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ\nD9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC\nEYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq\n391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4G)"
+    // ); if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=42\r\nO0YSNuczzEm4=\n-----END CERTIFICATE-----\n)" );
-    // if ( !ESP8266_Recv( "OK" ) )
+    // ESP8266_Send( R"(AT+CIPSEND=42\r\nO0YSNuczzEm4=\n-----END
+    // CERTIFICATE-----\n)" ); if ( !ESP8266_Recv( "OK" ) )
     //     Error_Handler();
     // ESP8266_Send( "AT+CIPSSLCERT=0,\"/ca.pem\"\r\n" );
     // if ( !ESP8266_Recv( "OK" ) )
@@ -1296,17 +1406,21 @@ int main( void )
         Error_Handler();
     }
     espReconnect();
-    ESP8266_ConfigureNTP( 1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
+    ESP8266_ConfigureNTP(
+        1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
     // updateTime();
     updateLastTelemetryInfo();
 
-    if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                                                                "Host: moscowtransport.app\r\n"
-                                                                "User-Agent: ESP8266\r\n"
-                                                                "Accept: application/json\r\n"
-                                                                "Connection: close\r\n" ) )
+    if ( ESP8266_SendRequest(
+             "TCP", "moscowtransport.app", 80,
+             "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+             "Host: moscowtransport.app\r\n"
+             "User-Agent: ESP8266\r\n"
+             "Accept: application/json\r\n"
+             "Connection: close\r\n" ) )
 
-        HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ), WIDTH * HEIGHT / 2 );
+        HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ),
+                            WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -1316,7 +1430,8 @@ int main( void )
     {
         if ( states.newFrame )
         {
-            if ( !states.cameraCountdown && TxData.cameraEnable && states.sdCardPresented )
+            if ( !states.cameraCountdown && TxData.cameraEnable &&
+                 states.sdCardPresented )
             {
                 {
                     auto testResult = testForBus();
@@ -1326,9 +1441,10 @@ int main( void )
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            // sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                            // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                            // enableLed500ms();
+                            // sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum,
+                            // states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                            // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame
+                            // ), sizeof( TxData.frame ) ); enableLed500ms();
                         }
                         states.cameraCountdown = true;
                         StartCountdown();
@@ -1341,9 +1457,10 @@ int main( void )
                             uint32_t photoNum { IncrementLastPhotoNumber() };
                             if ( photoNum )
                             {
-                                // sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                                // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                                // enableLed500ms();
+                                // sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum,
+                                // states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                                // SaveImageBMP( name, reinterpret_cast<uint8_t *>(
+                                // &TxData.frame ), sizeof( TxData.frame ) ); enableLed500ms();
                             }
                         }
                         states.cameraDebugPattern = false;
@@ -1401,8 +1518,8 @@ int main( void )
                     if ( photoNum )
                     {
                         // sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
-                        // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                        // enableLed500ms();
+                        // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ),
+                        // sizeof( TxData.frame ) ); enableLed500ms();
                     }
                     break;
             }
@@ -1464,7 +1581,7 @@ void SystemClock_Config( void )
     RCC_OscInitStruct.PLL.PLLM       = 6;
     RCC_OscInitStruct.PLL.PLLN       = 240;
     RCC_OscInitStruct.PLL.PLLP       = 2;
-    RCC_OscInitStruct.PLL.PLLQ       = 2;
+    RCC_OscInitStruct.PLL.PLLQ       = 8;
     RCC_OscInitStruct.PLL.PLLR       = 2;
     RCC_OscInitStruct.PLL.PLLRGE     = RCC_PLL1VCIRANGE_2;
     RCC_OscInitStruct.PLL.PLLVCOSEL  = RCC_PLL1VCOWIDE;
@@ -1497,7 +1614,7 @@ void SystemClock_Config( void )
  * @param None
  * @retval None
  */
-void MX_DCMI_Init( void )
+static void MX_DCMI_Init( void )
 {
     /* USER CODE BEGIN DCMI_Init 0 */
 
@@ -1683,7 +1800,7 @@ static void MX_RTC_Init( void )
  * @param None
  * @retval None
  */
-void MX_SDMMC1_SD_Init( void )
+static void MX_SDMMC1_SD_Init( void )
 {
     /* USER CODE BEGIN SDMMC1_Init 0 */
 
@@ -2027,8 +2144,10 @@ void Error_Handler( void )
 void assert_failed( uint8_t *file, uint32_t line )
 {
     /* USER CODE BEGIN 6 */
-    /* User can add his own implementation to report the FatFsFile name and line number,
-       //ex: printf("Wrong parameters value: FatFsFile %s on line %d\r\n", FatFsFile, line) */
+    /* User can add his own implementation to report the FatFsFile name and line
+       number,
+       //ex: printf("Wrong parameters value: FatFsFile %s on line %d\r\n",
+       FatFsFile, line) */
     /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
