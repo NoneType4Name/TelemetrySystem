@@ -20,6 +20,7 @@
 #include "main.h"
 #include "fatfs.h"
 #include "mbedtls.h"
+#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -1067,8 +1068,9 @@ void updateLastTelemetryInfo()
                 //     }
                 // }
                 ESP8266_Send( "+++" );
-                ESP8266_Send( "AT+CIPCLOSE\r\n" );
-                ESP8266_Send( "AT+CIPMODE=0\r\n" );
+                HAL_Delay( 100 );
+                ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" );
+                ESP8266_Send( "AT+CIPMODE=0\r\n" ) && ESP8266_Recv( "OK" );
             }
             else
                 espReconnect();
