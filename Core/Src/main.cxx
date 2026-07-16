@@ -1441,10 +1441,10 @@ int main( void )
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            // sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum,
-                            // states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                            // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame
-                            // ), sizeof( TxData.frame ) ); enableLed500ms();
+                            sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum,
+                                     states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                            SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                            enableLed500ms();
                         }
                         states.cameraCountdown = true;
                         StartCountdown();
@@ -1457,10 +1457,10 @@ int main( void )
                             uint32_t photoNum { IncrementLastPhotoNumber() };
                             if ( photoNum )
                             {
-                                // sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum,
-                                // states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                                // SaveImageBMP( name, reinterpret_cast<uint8_t *>(
-                                // &TxData.frame ), sizeof( TxData.frame ) ); enableLed500ms();
+                                sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum,
+                                         states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                                SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                                enableLed500ms();
                             }
                         }
                         states.cameraDebugPattern = false;
@@ -1517,9 +1517,10 @@ int main( void )
                     uint32_t photoNum { IncrementLastPhotoNumber() };
                     if ( photoNum )
                     {
-                        // sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
-                        // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ),
-                        // sizeof( TxData.frame ) ); enableLed500ms();
+                        sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
+                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ),
+                                      sizeof( TxData.frame ) );
+                        enableLed500ms();
                     }
                     break;
             }
