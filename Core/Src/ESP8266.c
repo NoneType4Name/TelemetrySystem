@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
-char ESP_RX_buff[ ESP_RX_buff_size ];
-char ESP_TX_buff[ ESP_TX_buff_size ];
+char ESP_RX_buff[ ESP_RX_buff_size ] __attribute__( ( section( ".RAM_D2" ) ) );
+char ESP_TX_buff[ ESP_TX_buff_size ] __attribute__( ( section( ".RAM_D2" ) ) );
 
 volatile uint8_t recvByte;
 int ESP_RX_buff_index = 0;

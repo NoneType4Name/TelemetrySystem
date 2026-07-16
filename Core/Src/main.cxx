@@ -20,7 +20,6 @@
 #include "main.h"
 #include "fatfs.h"
 #include "mbedtls.h"
-#include "stm32h7xx_hal.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -40,7 +39,6 @@
 #include <time.h>
 #include <vector>
 #include <sys/time.h>
-#include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
@@ -209,8 +207,8 @@ FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
 extern char ESP_TX_buff[ ESP_TX_buff_size ];
 std::bitset<WIDTH * HEIGHT> pixelVisited { 0 };
-static mbedtls_ssl_context ssl;
-static mbedtls_ssl_config conf;
+static mbedtls_ssl_context sslCtx;
+static mbedtls_ssl_config sslConf;
 static mbedtls_entropy_context entropy;
 static mbedtls_ctr_drbg_context ctr_drbg;
 
@@ -418,7 +416,7 @@ void CDC_TX_FRAME()
     CDC_Transmit_FS( reinterpret_cast<uint8_t *>( &TxData ), 1u << 12u );
 }
 
-HSL_t inline rgbToHSL( pixel_T p )
+HSL_t rgbToHSL( pixel_T p )
 {
     HSL_t result;
     uint8_t r = p.r << 1;
@@ -478,7 +476,7 @@ HSL_t inline rgbToHSL( pixel_T p )
     return result;
 }
 
-bool inline isRed( pixel_T pixel )
+bool isRed( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h < 5 ) ) && ( hsl.s > ( uint8_t ) ( .9f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .06f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .55f * 63 ) ) );
@@ -488,7 +486,7 @@ bool inline isRed( pixel_T pixel )
     // return true && ( r > b ) && ( r - b > ( 20 * 31 / 255 ) ) && ( abs( b - g ) < 10 ); // g~b(d:10), r-b>20
 }
 
-bool inline isYellow( pixel_T pixel )
+bool isYellow( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
     return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) && ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
@@ -518,7 +516,7 @@ bool isLightBlue( pixel_T pixel )
     // return true && ( b > ( 80 * 31 / 255 ) ) && ( b >= g ) && ( ( int ) b - g < ( 58 * 31 / 255 ) ) && ( b > r ) && ( ( int ) g - r < ( 32 * 31 / 255 ) ); // b > g >> r (80+, (80+)-58>0, (80+)-58-66>0)
 }
 
-bool inline isGrey( uint16_t pixel )
+bool isGrey( uint16_t pixel )
 {
     uint8_t r = RGB565_R( pixel );
     uint8_t g = RGB565_G( pixel );
@@ -526,7 +524,7 @@ bool inline isGrey( uint16_t pixel )
     return true && ( abs( ( int ) b - ( g >> 1 ) ) < ( 25 * 31 / 255 ) ) && ( abs( ( ( int ) g >> 1 ) - r ) < ( 25 * 31 / 255 ) ) && ( abs( ( int ) b - r ) < ( 25 * 31 / 255 ) ) && b > ( 150 * 31 / 255 ) && b < ( 210 * 31 / 255 ); // r -- g -- b < 10 && b in (150; 210)
 }
 
-std::array<uint16_t, 3> inline fillColorPattern( uint16_t leftUpPixelInd, bool nightMode ) // [left up corner, right down corner, count]
+std::array<uint16_t, 3> fillColorPattern( uint16_t leftUpPixelInd, bool nightMode ) // [left up corner, right down corner, count]
 {
     std::vector<uint16_t> stack { leftUpPixelInd };
     // frameBuffers[ 0 ][ leftUpPixelInd ] = 0x07e0;
@@ -998,16 +996,20 @@ void updateLastTelemetryInfo()
             {
                 if ( ( ESP8266_Send( "AT+CIPSEND\r\n" ) && ESP8266_Recv( ">" ) ) )
                 {
-                    if ( mbedtls_ssl_handshake( &ssl ) == 0 )
+                    mbedtls_ssl_setup( &sslCtx, &sslConf );
+                    mbedtls_ssl_set_hostname( &sslCtx, "moscowtransport.app" );
+
+                    if ( ( mbedtls_ssl_handshake( &sslCtx ) ) == 0 )
                     {
                         sprintf( ESP_TX_buff, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
                                               "Host: moscowtransport.app\r\n"
                                               "User-Agent: ESP8266\r\n"
+                                              "Accept: application/json\r\n"
                                               "Connection: close\r\n"
                                               "\r\n" );
-                        mbedtls_ssl_write( &ssl, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
+                        mbedtls_ssl_write( &sslCtx, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
                         ESP8266_ClearRecvBuff();
-                        if ( mbedtls_ssl_read( &ssl, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
+                        if ( mbedtls_ssl_read( &sslCtx, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
                         {
                             auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
                             if ( d )
@@ -1033,9 +1035,10 @@ void updateLastTelemetryInfo()
                                     return;
                                 }
                             }
-                            mbedtls_ssl_close_notify( &ssl );
+                            mbedtls_ssl_close_notify( &sslCtx );
                         }
                     }
+                    mbedtls_ssl_session_reset( &sslCtx );
                 }
                 // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
                 //                                                              "Host: moscowtransport.app\r\n"
@@ -1067,17 +1070,19 @@ void updateLastTelemetryInfo()
                 //         }
                 //     }
                 // }
-                ESP8266_Send( "+++" );
-                HAL_Delay( 100 );
-                ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" );
-                ESP8266_Send( "AT+CIPMODE=0\r\n" ) && ESP8266_Recv( "OK" );
+                do
+                {
+                    ESP8266_Send( "+++" );
+                    HAL_Delay( 100 );
+                } while ( !ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" ) );
             }
-            else
-                espReconnect();
+            ESP8266_Send( "AT+CIPMODE=0\r\n" ) && ESP8266_Recv( "OK" );
         }
+        else
+            espReconnect();
     }
 }
-
+extern int debugVar;
 void aecAutoControl()
 {
     if ( !states.autoExp )
@@ -1219,27 +1224,30 @@ int main( void )
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
 
     // init mbedtls
-    mbedtls_ssl_init( &ssl );
-    mbedtls_ssl_config_init( &conf );
+
+    mbedtls_ssl_init( &sslCtx );
+    mbedtls_ssl_config_init( &sslConf );
     mbedtls_entropy_init( &entropy );
     mbedtls_ctr_drbg_init( &ctr_drbg );
 
     mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
 
-    mbedtls_ssl_config_defaults( &conf,
+    mbedtls_ssl_config_defaults( &sslConf,
                                  MBEDTLS_SSL_IS_CLIENT,
                                  MBEDTLS_SSL_TRANSPORT_STREAM,
                                  MBEDTLS_SSL_PRESET_DEFAULT );
 
-    mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_NONE );
-    mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
+    mbedtls_ssl_conf_authmode( &sslConf, MBEDTLS_SSL_VERIFY_NONE );
+    mbedtls_ssl_conf_rng( &sslConf, mbedtls_ctr_drbg_random, &ctr_drbg );
 
-    mbedtls_ssl_setup( &ssl, &conf );
-    mbedtls_ssl_set_bio( &ssl, NULL, []( void *huart, const uint8_t *data, size_t len ) -> int
-                         {HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 ) ;return len; }, // Отправка через ESP-01
-                         []( void *huart, uint8_t *data, size_t len ) -> int
-                         { HAL_UART_Receive((UART_HandleTypeDef*)huart, data, len, 1000);
-                            return len; }, NULL );
+    mbedtls_ssl_set_bio( &sslCtx, &huart3, []( void *huart, const uint8_t *data, size_t len ) -> int
+                         {HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 ) ;
+                            return len; }, []( void *huart, uint8_t *data, size_t len ) -> int
+                         { ESP_TX_buff[200] = HAL_UART_Receive((UART_HandleTypeDef*)huart, data, len, 1000);
+                            if(ESP_TX_buff[200])
+                                return 0;
+                            else
+                                return len; }, NULL );
 
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
@@ -1249,9 +1257,9 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-        Error_Handler();
+    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    // if ( !ESP8266_Recv( "OK" ) )
+    //     Error_Handler();
 
     // ESP8266_Send( "AT+FS=OPEN,\"/ca.pem\",\"w\"\r\n" );
     // if ( !ESP8266_Recv( "OK" ) )
@@ -1289,7 +1297,7 @@ int main( void )
     }
     espReconnect();
     ESP8266_ConfigureNTP( 1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
-    updateTime();
+    // updateTime();
     updateLastTelemetryInfo();
 
     if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -1318,9 +1326,9 @@ int main( void )
                         uint32_t photoNum { IncrementLastPhotoNumber() };
                         if ( photoNum )
                         {
-                            sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                            SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                            enableLed500ms();
+                            // sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                            // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                            // enableLed500ms();
                         }
                         states.cameraCountdown = true;
                         StartCountdown();
@@ -1333,9 +1341,9 @@ int main( void )
                             uint32_t photoNum { IncrementLastPhotoNumber() };
                             if ( photoNum )
                             {
-                                sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
-                                SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                                enableLed500ms();
+                                // sprintf( name, "0:/debug/d%d-%c-%d.bmp", photoNum, states.nightMode ? 'n' : 'd', TxData.avgLuminance );
+                                // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                                // enableLed500ms();
                             }
                         }
                         states.cameraDebugPattern = false;
@@ -1392,9 +1400,9 @@ int main( void )
                     uint32_t photoNum { IncrementLastPhotoNumber() };
                     if ( photoNum )
                     {
-                        sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
-                        SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
-                        enableLed500ms();
+                        // sprintf( name, "0:/shots/img%d.bmp", ( int ) photoNum );
+                        // SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                        // enableLed500ms();
                     }
                     break;
             }
@@ -1855,7 +1863,7 @@ static void MX_USART3_UART_Init( void )
     {
         Error_Handler();
     }
-    if ( HAL_UARTEx_DisableFifoMode( &huart3 ) != HAL_OK )
+    if ( HAL_UARTEx_EnableFifoMode( &huart3 ) != HAL_OK )
     {
         Error_Handler();
     }

@@ -23,72 +23,67 @@
 #define __MAIN_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32h7xx_hal.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+    /* Private includes ----------------------------------------------------------*/
+    /* USER CODE BEGIN Includes */
 
-/* USER CODE END Includes */
+    /* USER CODE END Includes */
 
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
+    /* Exported types ------------------------------------------------------------*/
+    /* USER CODE BEGIN ET */
 
-/* USER CODE END ET */
+    /* USER CODE END ET */
 
-/* Exported constants --------------------------------------------------------*/
-/* USER CODE BEGIN EC */
+    /* Exported constants --------------------------------------------------------*/
+    /* USER CODE BEGIN EC */
 
-/* USER CODE END EC */
+    /* USER CODE END EC */
 
-/* Exported macro ------------------------------------------------------------*/
-/* USER CODE BEGIN EM */
+    /* Exported macro ------------------------------------------------------------*/
+    /* USER CODE BEGIN EM */
 
-/* USER CODE END EM */
+    /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+    void HAL_TIM_MspPostInit( TIM_HandleTypeDef *htim );
 
-/* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
-void MX_SDMMC1_SD_Init(void);
-void MX_DCMI_Init(void);
+    /* Exported functions prototypes ---------------------------------------------*/
+    void Error_Handler( void );
+    void MX_SDMMC1_SD_Init( void );
+    void MX_DCMI_Init( void );
 
-/* USER CODE BEGIN EFP */
+    /* USER CODE BEGIN EFP */
     void my_printf( const char *fmt, ... );
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_Pin GPIO_PIN_3
-#define LED_GPIO_Port GPIOE
-#define BUTTON_Pin GPIO_PIN_13
-#define BUTTON_GPIO_Port GPIOC
-#define BUTTON_EXTI_IRQn EXTI15_10_IRQn
-#define DCMI_PWDN_Pin GPIO_PIN_7
+#define LED_Pin             GPIO_PIN_3
+#define LED_GPIO_Port       GPIOE
+#define BUTTON_Pin          GPIO_PIN_13
+#define BUTTON_GPIO_Port    GPIOC
+#define BUTTON_EXTI_IRQn    EXTI15_10_IRQn
+#define DCMI_PWDN_Pin       GPIO_PIN_7
 #define DCMI_PWDN_GPIO_Port GPIOA
-#define ESP_PW_Pin GPIO_PIN_12
-#define ESP_PW_GPIO_Port GPIOB
-#define DCMI_XCLK_Pin GPIO_PIN_8
+#define ESP_PW_Pin          GPIO_PIN_12
+#define ESP_PW_GPIO_Port    GPIOB
+#define DCMI_XCLK_Pin       GPIO_PIN_8
 #define DCMI_XCLK_GPIO_Port GPIOA
-#define SDMMC1_SW_Pin GPIO_PIN_4
+#define SDMMC1_SW_Pin       GPIO_PIN_4
 #define SDMMC1_SW_GPIO_Port GPIOD
 #define SDMMC1_SW_EXTI_IRQn EXTI4_IRQn
 
-/* USER CODE BEGIN Private defines */
+    /* USER CODE BEGIN Private defines */
 
-#define CAMERA_RESET_Pin       GPIO_PIN_0
-#define CAMERA_RESET_GPIO_Port GPIOG
-#define CAMERA_PWDN_Pin        GPIO_PIN_1
-#define CAMERA_PWDN_GPIO_Port  GPIOG
-#define DCMI_XCLX_Pin          GPIO_PIN_8
-#define DCMI_XCLX_GPIO_Port    GPIOA
-#define WIDTH                  200 // 0-255 - TxData_T
-#define HEIGHT                 80  // 0-127 - TxData_T
+#define WIDTH  200 // 0-255 - TxData_T
+#define HEIGHT 80  // 0-127 - TxData_T
 
-/* USER CODE END Private defines */
+    /* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
