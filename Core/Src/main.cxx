@@ -38,6 +38,11 @@
 #include <stdarg.h>
 #include <time.h>
 #include <vector>
+#include <sys/time.h>
+#include "mbedtls/net_sockets.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
 // #include "TestImage.h"
 extern "C"
 {
@@ -73,6 +78,8 @@ DCMI_HandleTypeDef hdcmi;
 DMA_HandleTypeDef hdma_dcmi;
 
 I2C_HandleTypeDef hi2c1;
+
+RNG_HandleTypeDef hrng;
 
 RTC_HandleTypeDef hrtc;
 
@@ -199,7 +206,12 @@ typedef struct
 
 FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
+extern char ESP_TX_buff[ ESP_TX_buff_size ];
 std::bitset<WIDTH * HEIGHT> pixelVisited { 0 };
+static mbedtls_ssl_context ssl;
+static mbedtls_ssl_config conf;
+static mbedtls_entropy_context entropy;
+static mbedtls_ctr_drbg_context ctr_drbg;
 
 /* USER CODE END PV */
 
@@ -214,6 +226,7 @@ static void MX_TIM3_Init( void );
 static void MX_TIM7_Init( void );
 static void MX_RTC_Init( void );
 static void MX_TIM6_Init( void );
+static void MX_RNG_Init( void );
 /* USER CODE BEGIN PFP */
 
 void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
@@ -978,38 +991,88 @@ void updateLastTelemetryInfo()
 {
     while ( 1 )
     {
-        if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                                                                     "Host: moscowtransport.app\r\n"
-                                                                     "User-Agent: ESP8266\r\n"
-                                                                     "Connection: close\r\n" ) )
+        if ( ESP8266_IsConnectedToWifi() )
         {
-            auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "externalForecast" ), "\"time" );
-            if ( d )
+            if ( ( ESP8266_Send( "AT+CIPMODE=1\r\n" ) && ESP8266_Recv( "OK" ) ) && ( ESP8266_Send( "AT+CIPSTART=\"TCP\",\"moscowtransport.app\",443\r\n" ) && ESP8266_Recv( "OK" ) ) )
             {
-                uint16_t remainedTime;
-                bool telemetry;
-                uint32_t tmId;
-                auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
-                if ( s == 3 )
+                if ( ( ESP8266_Send( "AT+CIPSEND\r\n" ) && ESP8266_Recv( ">" ) ) )
                 {
-                    if ( remainedTime > 5 * 60 )
+                    if ( mbedtls_ssl_handshake( &ssl ) == 0 )
                     {
-                        lastTelemetry.ticksToOutdate = 5 * 60 / 2;
+                        sprintf( ESP_TX_buff, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                                              "Host: moscowtransport.app\r\n"
+                                              "User-Agent: ESP8266\r\n"
+                                              "Connection: close\r\n"
+                                              "\r\n" );
+                        mbedtls_ssl_write( &ssl, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
+                        ESP8266_ClearRecvBuff();
+                        if ( mbedtls_ssl_read( &ssl, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
+                        {
+                            auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
+                            if ( d )
+                            {
+                                uint16_t remainedTime;
+                                bool telemetry;
+                                uint32_t tmId;
+                                auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
+                                if ( s == 3 )
+                                {
+                                    if ( remainedTime > 5 * 60 )
+                                    {
+                                        lastTelemetry.ticksToOutdate = 5 * 60 / 2;
+                                    }
+                                    else
+                                    {
+                                        lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
+                                    }
+                                    HAL_TIM_Base_Start_IT( &htim6 );
+                                    lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
+                                    lastTelemetry.byTelemetry   = telemetry;
+                                    lastTelemetry.tmId          = tmId;
+                                    return;
+                                }
+                            }
+                            mbedtls_ssl_close_notify( &ssl );
+                        }
                     }
-                    else
-                    {
-                        lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
-                    }
-                    HAL_TIM_Base_Start_IT( &htim6 );
-                    lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
-                    lastTelemetry.byTelemetry   = telemetry;
-                    lastTelemetry.tmId          = tmId;
-                    return;
                 }
+                // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
+                //                                                              "Host: moscowtransport.app\r\n"
+                //                                                              "User-Agent: ESP8266\r\n"
+                //                                                              "Connection: close\r\n" ) )
+                // {
+                //     auto d = strstr( strstr( ESP8266_GetResponse( 5000 ), "externalForecast" ), "\"time" );
+                //     if ( d )
+                //     {
+                //         uint16_t remainedTime;
+                //         bool telemetry;
+                //         uint32_t tmId;
+                //         auto s = sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
+                //         if ( s == 3 )
+                //         {
+                //             if ( remainedTime > 5 * 60 )
+                //             {
+                //                 lastTelemetry.ticksToOutdate = 5 * 60 / 2;
+                //             }
+                //             else
+                //             {
+                //                 lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
+                //             }
+                //             HAL_TIM_Base_Start_IT( &htim6 );
+                //             lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
+                //             lastTelemetry.byTelemetry   = telemetry;
+                //             lastTelemetry.tmId          = tmId;
+                //             return;
+                //         }
+                //     }
+                // }
+                ESP8266_Send( "+++" );
+                ESP8266_Send( "AT+CIPCLOSE\r\n" );
+                ESP8266_Send( "AT+CIPMODE=0\r\n" );
             }
+            else
+                espReconnect();
         }
-        else
-            espReconnect();
     }
 }
 
@@ -1067,6 +1130,26 @@ void aecAutoControl()
     }
 }
 
+// mbedtls_time_t mbedtls_platform_time( mbedtls_time_t *timer )
+// {
+//     mbedtls_time_t time_val = RTC_Unix_Timestamp();
+//     if ( timer )
+//     {
+//         *timer = time_val;
+//     }
+//     return time_val;
+// }
+
+// int _gettimeofday( struct timeval *tv, void *tz )
+// {
+//     if ( tv )
+//     {
+//         tv->tv_sec  = RTC_Unix_Timestamp();
+//         tv->tv_usec = 0;
+//     }
+//     return 0;
+// }
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -1117,6 +1200,7 @@ int main( void )
     MX_RTC_Init();
     MX_TIM6_Init();
     MX_MBEDTLS_Init();
+    MX_RNG_Init();
     /* USER CODE BEGIN 2 */
     HAL_Delay( 400 );
     if ( HAL_GPIO_ReadPin( SDMMC1_SW_GPIO_Port, SDMMC1_SW_Pin ) )
@@ -1132,10 +1216,33 @@ int main( void )
 
     // HAL_DMA_RegisterCallback( &hdma_dcmi, HAL_DMA_XFER_CPLT_CB_ID, HAL_DMA_CpltCallback );
 
+    // init mbedtls
+    mbedtls_ssl_init( &ssl );
+    mbedtls_ssl_config_init( &conf );
+    mbedtls_entropy_init( &entropy );
+    mbedtls_ctr_drbg_init( &ctr_drbg );
+
+    mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
+
+    mbedtls_ssl_config_defaults( &conf,
+                                 MBEDTLS_SSL_IS_CLIENT,
+                                 MBEDTLS_SSL_TRANSPORT_STREAM,
+                                 MBEDTLS_SSL_PRESET_DEFAULT );
+
+    mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_NONE );
+    mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
+
+    mbedtls_ssl_setup( &ssl, &conf );
+    mbedtls_ssl_set_bio( &ssl, NULL, []( void *huart, const uint8_t *data, size_t len ) -> int
+                         {HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 ) ;return len; }, // Отправка через ESP-01
+                         []( void *huart, uint8_t *data, size_t len ) -> int
+                         { HAL_UART_Receive((UART_HandleTypeDef*)huart, data, len, 1000);
+                            return len; }, NULL );
+
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
     ESP8266_ON();
-    ESP8266_DisableEcho();
+    ESP8266_EnableEcho();
     ESP8266_Send( "AT+CWMODE=1\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
@@ -1181,7 +1288,7 @@ int main( void )
     espReconnect();
     ESP8266_ConfigureNTP( 1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
     updateTime();
-    // updateLastTelemetryInfo();
+    updateLastTelemetryInfo();
 
     if ( ESP8266_SendRequest( "TCP", "moscowtransport.app", 80, "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
                                                                 "Host: moscowtransport.app\r\n"
@@ -1454,6 +1561,31 @@ static void MX_I2C1_Init( void )
     /* USER CODE BEGIN I2C1_Init 2 */
 
     /* USER CODE END I2C1_Init 2 */
+}
+
+/**
+ * @brief RNG Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_RNG_Init( void )
+{
+    /* USER CODE BEGIN RNG_Init 0 */
+
+    /* USER CODE END RNG_Init 0 */
+
+    /* USER CODE BEGIN RNG_Init 1 */
+
+    /* USER CODE END RNG_Init 1 */
+    hrng.Instance                 = RNG;
+    hrng.Init.ClockErrorDetection = RNG_CED_ENABLE;
+    if ( HAL_RNG_Init( &hrng ) != HAL_OK )
+    {
+        Error_Handler();
+    }
+    /* USER CODE BEGIN RNG_Init 2 */
+
+    /* USER CODE END RNG_Init 2 */
 }
 
 /**

@@ -233,7 +233,7 @@
  * peers are using it too!
  */
 #if !defined(MBEDTLS_SSL_MAX_CONTENT_LEN)
-#define MBEDTLS_SSL_MAX_CONTENT_LEN         16384   /**< Size of the input / output buffer */
+#define MBEDTLS_SSL_MAX_CONTENT_LEN         16384 / 2   /**< Size of the input / output buffer */
 #endif
 
 #if !defined(MBEDTLS_SSL_IN_CONTENT_LEN)
