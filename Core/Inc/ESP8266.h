@@ -4,8 +4,8 @@
 #include "stdbool.h"
 #include "stm32h7xx_hal.h"
 
-#define ESP_RX_buff_size 2048
-#define ESP_TX_buff_size 256
+#define ESP_RX_buff_size 16384
+#define ESP_TX_buff_size 512
 
 #define ESP_DEBUG
 
@@ -13,6 +13,7 @@ void ESP8266_ClearRecvBuff();
 
 bool ESP8266_Send( const char *command );
 bool ESP8266_Recv( const char *correctAnswer );
+size_t ESP8266_RecvCount( uint8_t *dst, uint32_t count );
 
 char *ESP8266_GetAcceessPoints();
 
@@ -37,6 +38,11 @@ bool ESP8266_SendRequest( const char *type, const char *ip, uint16_t port, const
 bool ESP8266_AT_CIPSTART( const char *type, const char *ip, uint16_t port );
 bool ESP8266_AT_CIPSEND( int requestLength );
 bool ESP8266_AT_SendData( const char *request );
+
+void ESP8266_StartPollingReceive( void );
+void ESP8266_StopPollingReceive( void );
+uint32_t ESP8266_GetPollingBytesAvailable( void );
+uint32_t ESP8266_CopyPollingData( uint8_t *dst, uint32_t maxLen );
 
 char *ESP8266_GetResponse( uint32_t timeout );
 

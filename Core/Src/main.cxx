@@ -89,6 +89,7 @@ TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart3;
+DMA_HandleTypeDef hdma_usart3_rx;
 
 /* USER CODE BEGIN PV */
 extern uint8_t UserRxBufferFS[ APP_RX_DATA_SIZE ];
@@ -207,10 +208,10 @@ FIL FatFsFile;
 extern char ESP_RX_buff[ ESP_RX_buff_size ];
 extern char ESP_TX_buff[ ESP_TX_buff_size ];
 std::bitset<WIDTH * HEIGHT> pixelVisited { 0 };
-static mbedtls_ssl_context sslCtx;
-static mbedtls_ssl_config sslConf;
-static mbedtls_entropy_context entropy;
-static mbedtls_ctr_drbg_context ctr_drbg;
+extern mbedtls_ssl_context ssl;
+extern mbedtls_ssl_config conf;
+extern mbedtls_ctr_drbg_context ctr_drbg;
+extern mbedtls_entropy_context entropy;
 
 /* USER CODE END PV */
 
@@ -347,7 +348,7 @@ void my_printf( const char *fmt, ... )
     va_start( argp, fmt );
     vprint( fmt, argp );
     va_end( argp );
-    HAL_Delay( 50 );
+    // HAL_Delay( 50 );
 }
 
 void getAverageLuminance()
@@ -1022,36 +1023,58 @@ void updateTime()
 {
     while ( 1 )
     {
-        if ( ESP8266_SendRequest(
-                 "SSL", "tools.aimylogic.com", 443,
-                 "GET /api/now?tz=Europe/Moscow&format=dd,MM,yy,HH,mm,ss,u "
-                 "HTTP/1.1\r\n"
-                 "Host: tools.aimylogic.com\r\n"
-                 "User-Agent: ESP8266\r\n"
-                 "Accept: application/json\r\n"
-                 "Connection: close\r\n" ) )
+        if ( ESP8266_Send( "AT+CIPSNTPTIME?\r\n" ) && ESP8266_Recv( "OK" ) )
         {
-            auto d =
-                strstr( strstr( ESP8266_GetResponse( 5000 ), "\r\n\r\n" ) + 4, "\r\n" ) + 2;
-            if ( d )
+            uint8_t day, month, hour, minute, second, dayOfWeek;
+            uint16_t year;
+            char monthStr[ 4 ];
+            char dayOfWeekStr[ 4 ];
+
+            int temp_day, temp_hour, temp_minute, temp_second, temp_year;
+            auto s = sscanf( strstr( ESP_RX_buff, "+CIPSNTPTIME:" ),
+                             "+CIPSNTPTIME:%3s %3s %d %d:%d:%d %d",
+                             dayOfWeekStr, monthStr, &temp_day, &temp_hour, &temp_minute, &temp_second, &temp_year );
+            if ( s == 7 )
             {
-                uint8_t day, month, year, hour, minute, second, dayOfWeek;
-                auto s = sscanf( d,
-                                 "{\"timezone\":\"Europe/"
-                                 "Moscow\",\"formatted\":\"%d,%d,%d,%d,%d,%d,%d\"",
-                                 ( int * ) &day, ( int * ) &month, ( int * ) &year, ( int * ) &hour,
-                                 ( int * ) &minute, ( int * ) &second, ( int * ) &dayOfWeek );
-                if ( s == 7 )
+                day    = ( uint8_t ) temp_day;
+                hour   = ( uint8_t ) temp_hour;
+                minute = ( uint8_t ) temp_minute;
+                second = ( uint8_t ) temp_second;
+                year   = ( uint16_t ) temp_year;
+                if ( year == 1970 )
                 {
-                    RTC_TimeTypeDef cTime { hour, minute, second };
-                    RTC_DateTypeDef cData { dayOfWeek, month, day, year };
-                    if ( hour )
-                        __NOP();
-                    HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
-                    HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
-                    states.needCalibrateRTC = false;
-                    return;
+                    HAL_Delay( 1000 );
+                    continue;
                 }
+                const char *days[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+                dayOfWeek          = 1;
+                for ( int i = 0; i < 7; i++ )
+                {
+                    if ( strcmp( dayOfWeekStr, days[ i ] ) == 0 )
+                    {
+                        dayOfWeek = i + 1;
+                        break;
+                    }
+                }
+                const char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+                month                = 1;
+                for ( int i = 0; i < 12; i++ )
+                {
+                    if ( strcmp( monthStr, months[ i ] ) == 0 )
+                    {
+                        month = i + 1;
+                        break;
+                    }
+                }
+
+                RTC_TimeTypeDef cTime = { hour, minute, second };
+                RTC_DateTypeDef cData = { dayOfWeek, month, day, static_cast<uint8_t>( year - 2000 ) };
+
+                HAL_RTC_SetTime( &hrtc, &cTime, FORMAT_BIN );
+                HAL_RTC_SetDate( &hrtc, &cData, FORMAT_BIN );
+                states.needCalibrateRTC = false;
+                return;
             }
         }
         else
@@ -1061,6 +1084,7 @@ void updateTime()
 
 void updateLastTelemetryInfo()
 {
+    int dd;
     while ( 1 )
     {
         if ( ESP8266_IsConnectedToWifi() )
@@ -1072,10 +1096,11 @@ void updateLastTelemetryInfo()
             {
                 if ( ( ESP8266_Send( "AT+CIPSEND\r\n" ) && ESP8266_Recv( ">" ) ) )
                 {
-                    mbedtls_ssl_setup( &sslCtx, &sslConf );
-                    mbedtls_ssl_set_hostname( &sslCtx, "moscowtransport.app" );
-
-                    if ( ( mbedtls_ssl_handshake( &sslCtx ) ) == 0 )
+                    mbedtls_ssl_session_reset( &ssl );
+                    ESP8266_ClearRecvBuff();
+                    ESP8266_StartPollingReceive();
+                    mbedtls_ssl_set_hostname( &ssl, "moscowtransport.app" );
+                    if ( ( mbedtls_ssl_handshake( &ssl ) ) == 0 )
                     {
                         sprintf( ESP_TX_buff,
                                  "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 "
@@ -1085,14 +1110,15 @@ void updateLastTelemetryInfo()
                                  "Accept: application/json\r\n"
                                  "Connection: close\r\n"
                                  "\r\n" );
-                        mbedtls_ssl_write( &sslCtx, ( uint8_t * ) ESP_TX_buff,
-                                           strlen( ESP_TX_buff ) );
+                        // ESP8266_ClearRecvBuff();
+                        // ESP8266_StartPollingReceive();
+                        ESP8266_StopPollingReceive();
                         ESP8266_ClearRecvBuff();
-                        if ( mbedtls_ssl_read( &sslCtx, ( uint8_t * ) ESP_RX_buff,
-                                               sizeof( ESP_RX_buff ) - 1 ) )
+                        mbedtls_ssl_write( &ssl, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
+                        ESP8266_StartPollingReceive();
+                        if ( dd = mbedtls_ssl_read( &ssl, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
                         {
-                            auto d =
-                                strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
+                            auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
                             if ( d )
                             {
                                 uint16_t remainedTime;
@@ -1120,10 +1146,10 @@ void updateLastTelemetryInfo()
                                     return;
                                 }
                             }
-                            mbedtls_ssl_close_notify( &sslCtx );
+                            mbedtls_ssl_close_notify( &ssl );
                         }
                     }
-                    mbedtls_ssl_session_reset( &sslCtx );
+                    ESP8266_StopPollingReceive();
                 }
                 // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET
                 // /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
@@ -1167,7 +1193,7 @@ void updateLastTelemetryInfo()
                 {
                     ESP8266_Send( "+++" );
                     HAL_Delay( 100 );
-                } while ( !ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" ) );
+                } while ( !( ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" ) ) );
             }
             ESP8266_Send( "AT+CIPMODE=0\r\n" ) && ESP8266_Recv( "OK" );
         }
@@ -1322,23 +1348,24 @@ int main( void )
     // HAL_DMA_CpltCallback );
 
     // init mbedtls
-
-    mbedtls_ssl_init( &sslCtx );
-    mbedtls_ssl_config_init( &sslConf );
-    mbedtls_entropy_init( &entropy );
-    mbedtls_ctr_drbg_init( &ctr_drbg );
-
+    mbedtls_ssl_setup( &ssl, &conf );
     mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
 
-    mbedtls_ssl_config_defaults( &sslConf, MBEDTLS_SSL_IS_CLIENT,
+    mbedtls_ssl_config_defaults( &conf, MBEDTLS_SSL_IS_CLIENT,
                                  MBEDTLS_SSL_TRANSPORT_STREAM,
                                  MBEDTLS_SSL_PRESET_DEFAULT );
 
-    mbedtls_ssl_conf_authmode( &sslConf, MBEDTLS_SSL_VERIFY_NONE );
-    mbedtls_ssl_conf_rng( &sslConf, mbedtls_ctr_drbg_random, &ctr_drbg );
+    const int ciphersuites[] = {
+        MBEDTLS_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        0 };
+
+    mbedtls_ssl_conf_ciphersuites( &conf, ciphersuites );
+    mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_NONE );
+    mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
 
     mbedtls_ssl_set_bio(
-        &sslCtx, &huart3,
+        &ssl, &huart3,
         []( void *huart, const uint8_t *data, size_t len ) -> int
         {
             HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 );
@@ -1346,12 +1373,7 @@ int main( void )
         },
         []( void *huart, uint8_t *data, size_t len ) -> int
         {
-            ESP_TX_buff[ 200 ] =
-                HAL_UART_Receive( ( UART_HandleTypeDef * ) huart, data, len, 1000 );
-            if ( ESP_TX_buff[ 200 ] )
-                return 0;
-            else
-                return len;
+            return ESP8266_RecvCount( data, len );
         },
         NULL );
 
@@ -1363,39 +1385,6 @@ int main( void )
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
 
-    // ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-
-    // ESP8266_Send( "AT+FS=OPEN,\"/ca.pem\",\"w\"\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=512\r\n-----BEGIN
-    // CERTIFICATE-----\nMIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx\nPzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu\nZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg\nQ0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS\nVTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg\nYW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v\ndCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n\nqqE0Zp52selXsKGFYoG0G)"
-    // ); if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send(
-    // R"(AT+CIPSEND=512\r\nM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q\nXBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U\nzn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX\nYwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y\nBer/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD\nU+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD\n4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9\nG8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH\nBLa52)"
-    // ); if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send(
-    // R"(AT+CIPSEND=512\r\n/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX\nePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa\nOiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf\nBKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS\nBgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF\nAAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH\ntmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq\nW9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMR)"
-    // ); if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send(
-    // R"(AT+CIPSEND=512\r\nl1JbW2bM+\n/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS\nAQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj\nC/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV\n4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d\nWN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ\nD9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC\nEYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq\n391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4G)"
-    // ); if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send( R"(AT+CIPSEND=42\r\nO0YSNuczzEm4=\n-----END
-    // CERTIFICATE-----\n)" ); if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send( "AT+CIPSSLCERT=0,\"/ca.pem\"\r\n" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-    // ESP8266_Send( "AT+CIPSSLCERTSAVE" );
-    // if ( !ESP8266_Recv( "OK" ) )
-    //     Error_Handler();
-
     ESP8266_Send( "AT+CIPMUX=0\r\n" );
     if ( !ESP8266_Recv( "OK" ) )
         Error_Handler();
@@ -1405,10 +1394,16 @@ int main( void )
     {
         Error_Handler();
     }
+    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
+    if ( !ESP8266_Recv( "OK" ) )
+    {
+        Error_Handler();
+    }
     espReconnect();
     ESP8266_ConfigureNTP(
         1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
-    // updateTime();
+    HAL_Delay( 1000 );
+    updateTime();
     updateLastTelemetryInfo();
 
     if ( ESP8266_SendRequest(
@@ -1968,7 +1963,8 @@ static void MX_USART3_UART_Init( void )
     huart3.Init.OverSampling           = UART_OVERSAMPLING_16;
     huart3.Init.OneBitSampling         = UART_ONE_BIT_SAMPLE_DISABLE;
     huart3.Init.ClockPrescaler         = UART_PRESCALER_DIV1;
-    huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_RXOVERRUNDISABLE_INIT;
+    huart3.AdvancedInit.OverrunDisable = UART_ADVFEATURE_OVERRUN_DISABLE;
     if ( HAL_UART_Init( &huart3 ) != HAL_OK )
     {
         Error_Handler();
@@ -1981,7 +1977,7 @@ static void MX_USART3_UART_Init( void )
     {
         Error_Handler();
     }
-    if ( HAL_UARTEx_EnableFifoMode( &huart3 ) != HAL_OK )
+    if ( HAL_UARTEx_DisableFifoMode( &huart3 ) != HAL_OK )
     {
         Error_Handler();
     }
@@ -2000,8 +1996,11 @@ static void MX_DMA_Init( void )
 
     /* DMA interrupt init */
     /* DMA1_Stream0_IRQn interrupt configuration */
-    HAL_NVIC_SetPriority( DMA1_Stream0_IRQn, 0, 0 );
+    HAL_NVIC_SetPriority( DMA1_Stream0_IRQn, 1, 0 );
     HAL_NVIC_EnableIRQ( DMA1_Stream0_IRQn );
+    /* DMA1_Stream1_IRQn interrupt configuration */
+    HAL_NVIC_SetPriority( DMA1_Stream1_IRQn, 0, 0 );
+    HAL_NVIC_EnableIRQ( DMA1_Stream1_IRQn );
 }
 
 /**
@@ -2075,10 +2074,10 @@ static void MX_GPIO_Init( void )
     HAL_GPIO_Init( SDMMC1_SW_GPIO_Port, &GPIO_InitStruct );
 
     /* EXTI interrupt init*/
-    HAL_NVIC_SetPriority( SDMMC1_SW_EXTI_IRQn, 0, 0 );
+    HAL_NVIC_SetPriority( SDMMC1_SW_EXTI_IRQn, 1, 0 );
     HAL_NVIC_EnableIRQ( SDMMC1_SW_EXTI_IRQn );
 
-    HAL_NVIC_SetPriority( BUTTON_EXTI_IRQn, 0, 0 );
+    HAL_NVIC_SetPriority( BUTTON_EXTI_IRQn, 1, 0 );
     HAL_NVIC_EnableIRQ( BUTTON_EXTI_IRQn );
 
     /* USER CODE BEGIN MX_GPIO_Init_2 */

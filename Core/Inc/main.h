@@ -57,7 +57,7 @@ extern "C"
 
     /* USER CODE BEGIN EFP */
     void my_printf( const char *fmt, ... );
-
+    uint64_t RTC_Unix_Timestamp();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
