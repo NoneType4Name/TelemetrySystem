@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
 #include <time.h>
 #include <vector>
@@ -504,8 +505,9 @@ bool isRed( pixel_T pixel )
 bool isYellow( pixel_T pixel )
 {
     auto hsl { rgbToHSL( pixel ) };
-    return ( ( hsl.h > 45 ) && ( hsl.h < 75 ) ) && ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) &&
-           ( ( hsl.l > ( uint8_t ) ( .15f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
+    return ( ( hsl.h > 35 ) && ( hsl.h < 110 ) ) &&
+           ( hsl.s > ( uint8_t ) ( .5f * 63 ) ) &&
+           ( ( hsl.l > ( uint8_t ) ( .05f * 63 ) ) && ( hsl.l < ( uint8_t ) ( .7f * 63 ) ) );
     // uint8_t r = RGB565_R( pixel );
     // uint8_t g = RGB565_G( pixel ) >> 1;
     // uint8_t b = RGB565_B( pixel );
@@ -644,10 +646,10 @@ bool inline dayTestForBus()
                     if ( dh > 12 )
                     {
                         float d = ( ( float ) ( dw ) / dh );
-                        if ( ( square > 3000 && ( d > 2.f && d < 4.f ) ) ||
-                             ( d > 4.f && d < 8.5f ) ) // (square > 3000 -> ratio in range 2-3 -
-                                                       // bus | 1000 < square < 3000 -> ratio ~
-                                                       // 4-6.5f - roof of bus) #experemental
+                        if ( ( square > 3000 && ( d > 2.f && d < 5.f ) ) ||
+                             ( d > 4.f ) ) // (square > 3000 -> ratio in range 2-3 -
+                                           // bus | 1000 < square < 3000 -> ratio ~
+                                           // 4-15f - roof of bus)
                         {
                             if ( ++countLightBluePattern > 1 )
                                 states.cameraDebugPattern = true;
@@ -704,7 +706,7 @@ bool nightTestForBus() // by lights pattern
                       3;
             bool red { isRed( TxData.frame[ leftP ] ) };
             bool yellow { isYellow( TxData.frame[ leftP ] ) };
-            if ( yellow && GET_X( leftP ) < WIDTH / 8 * 5 )
+            if ( yellow && GET_X( leftP ) < WIDTH / 2 )
                 continue;
             if ( !pixelVisited.test( w + h * WIDTH ) &&
                  ( yellow
@@ -718,19 +720,23 @@ bool nightTestForBus() // by lights pattern
                 uint16_t square = dw * dh;
                 if ( red && square > 10 )
                 {
-                    ++redLigthCount;
-                    if ( GET_X( leftP ) < RedX && GET_Y( leftP ) < RedY )
+                    float d = ( float ) ( dw ) / dh;
+                    if ( dh > 2 && d > 0.7f && d < 2.f )
                     {
-                        RedX = GET_X( leftP );
-                        RedY = GET_Y( leftP );
+                        ++redLigthCount;
+                        if ( GET_X( leftP ) < RedX && GET_Y( leftP ) < RedY )
+                        {
+                            RedX = GET_X( leftP );
+                            RedY = GET_Y( leftP );
+                        }
+                        goto drawRect;
                     }
-                    goto drawRect;
                 }
                 else
                 {
-                    if ( square > 5 )
+                    if ( square > 3 )
                     {
-                        if ( square > 40 )
+                        if ( square > 80 )
                             states.cameraDebugPattern = true;
                         if ( dh < 4 )
                         {
@@ -808,7 +814,7 @@ bool nightTestForBus() // by lights pattern
 
 bool inline testForBus()
 {
-    if ( states.nightMode < 12 )
+    if ( states.nightMode )
         return nightTestForBus();
     return dayTestForBus();
 }
@@ -1395,7 +1401,7 @@ int main( void )
                         states.cameraCountdown = true;
                         StartCountdown();
                     }
-                    if ( states.cameraDebugPattern )
+                    if ( states.cameraDebugPattern && states.busIsNearby && true )
                     {
                         if ( states.nightMode )
                         {
