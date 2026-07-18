@@ -111,6 +111,7 @@ struct states_T
     uint16_t needCalibrateRTC : 1 { 0 };
     uint16_t nightMode : 1 { 0 };
     uint16_t cameraDebugPattern : 1 { 0 };
+    uint16_t busIsNearby : 1 { 0 };
 } states;
 FATFS FatFs;
 
@@ -217,6 +218,7 @@ extern mbedtls_entropy_context entropy;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config( void );
+void PeriphCommonClock_Config( void );
 static void MPU_Config( void );
 static void MX_GPIO_Init( void );
 static void MX_DMA_Init( void );
@@ -701,8 +703,11 @@ bool nightTestForBus() // by lights pattern
                         ( TxData.frame[ leftP ].b << 1 ) ) /
                       3;
             bool red { isRed( TxData.frame[ leftP ] ) };
+            bool yellow { isYellow( TxData.frame[ leftP ] ) };
+            if ( yellow && GET_X( leftP ) < WIDTH / 8 * 5 )
+                continue;
             if ( !pixelVisited.test( w + h * WIDTH ) &&
-                 ( isYellow( TxData.frame[ leftP ] )
+                 ( yellow
                    // || isLight( frameBuffers[ 0 ][ leftP ] )
                    || red ) )
             {
@@ -973,7 +978,7 @@ uint32_t IncrementLastPhotoNumber()
     return 0;
 }
 
-bool addNewRecord( uint32_t writeNum )
+bool addNewRecord( uint32_t writeNum, bool isOccured )
 {
     if ( !states.sdCardMounted )
         return 0;
@@ -985,7 +990,7 @@ bool addNewRecord( uint32_t writeNum )
         return 0;
     if ( !f_tell( &FatFsFile ) )
     {
-        char c[ 32 ] { "id,shedule,real,telemetry,night" };
+        char c[] { "id,shedule,real,telemetry,night,occured" };
         f_write( &FatFsFile, c, sizeof( c ), &bytes_read );
         if ( result == FR_OK && bytes_read == sizeof( c ) )
         {
@@ -994,8 +999,8 @@ bool addNewRecord( uint32_t writeNum )
     }
 
     char record[ 32 ];
-    sprintf( record, "%d,%lld,%lld,%i,%i\n", writeNum, lastTelemetry.timeByShedule,
-             RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode );
+    sprintf( record, "%d,%lld,%lld,%i,%i,%i\n", writeNum, lastTelemetry.timeByShedule,
+             RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode, isOccured );
     f_write( &FatFsFile, record, sizeof( record ), &bytes_read );
     f_sync( &FatFsFile );
     f_close( &FatFsFile );
@@ -1008,12 +1013,12 @@ bool addNewRecord( uint32_t writeNum )
     return 0;
 }
 
-void StartCountdown()
+void StartCountdown() // 5 sec
 {
     HAL_TIM_Base_Start_IT( &htim7 );
 }
 
-void enableLed500ms()
+void enableLed500ms() // 500 ms = 0.5 sec
 {
     HAL_TIM_Base_Start_IT( &htim3 );
     HAL_GPIO_WritePin( LED_GPIO_Port, LED_Pin, GPIO_PIN_SET );
@@ -1117,15 +1122,14 @@ void updateLastTelemetryInfo()
                     if ( ( mbedtls_ssl_handshake( &ssl ) ) == 0 )
                     {
                         sprintf( ESP_TX_buff,
-                                 "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 "
+                                 "GET /api/stop_v2/cfa44aab-9de8-498d-85f6-e3e36ad3be80 "
                                  "HTTP/1.1\r\n"
                                  "Host: moscowtransport.app\r\n"
                                  "User-Agent: ESP8266\r\n"
                                  "Accept: application/json\r\n"
                                  "Connection: close\r\n"
                                  "\r\n" );
-                        // ESP8266_ClearRecvBuff();
-                        // ESP8266_StartPollingReceive();
+
                         ESP8266_StopPollingReceive();
                         ESP8266_ClearRecvBuff();
                         mbedtls_ssl_write( &ssl, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
@@ -1135,77 +1139,37 @@ void updateLastTelemetryInfo()
                             auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
                             if ( d )
                             {
-                                uint16_t remainedTime;
-                                bool telemetry;
+                                uint32_t remainedTime;
+                                uint32_t telemetry;
                                 uint32_t tmId;
                                 auto s =
                                     sscanf( d, "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,",
-                                            ( int * ) &remainedTime, ( int * ) &telemetry, ( &tmId ) );
+                                            &remainedTime, &telemetry, &tmId );
                                 if ( s == 3 )
                                 {
                                     if ( remainedTime > 5 * 60 )
                                     {
-                                        lastTelemetry.ticksToOutdate = 5 * 60 / 2;
+                                        lastTelemetry.ticksToOutdate = 1 * 60 / 2;
                                     }
                                     else
                                     {
-                                        lastTelemetry.ticksToOutdate =
-                                            remainedTime / 2 + 3 * 60 / 2;
+                                        lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 * 60 / 2;
                                     }
-                                    HAL_TIM_Base_Start_IT( &htim6 );
-                                    lastTelemetry.timeByShedule =
-                                        RTC_Unix_Timestamp() + remainedTime;
-                                    lastTelemetry.byTelemetry = telemetry;
-                                    lastTelemetry.tmId        = tmId;
-                                    recv                      = 1;
+                                    HAL_TIM_Base_Start_IT( &htim6 ); // tick = 2 sec
+                                    lastTelemetry.timeByShedule = RTC_Unix_Timestamp() + remainedTime;
+                                    lastTelemetry.byTelemetry   = telemetry;
+                                    lastTelemetry.tmId          = tmId;
+                                    recv                        = 1;
                                 }
                             }
                         }
                     }
                     ESP8266_StopPollingReceive();
                 }
-                // if ( ESP8266_SendRequest( "SSL", "moscowtransport.app", 443, "GET
-                // /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-                //                                                              "Host:
-                //                                                              moscowtransport.app\r\n"
-                //                                                              "User-Agent:
-                //                                                              ESP8266\r\n"
-                //                                                              "Connection:
-                //                                                              close\r\n"
-                //                                                              ) )
-                // {
-                //     auto d = strstr( strstr( ESP8266_GetResponse( 5000 ),
-                //     "externalForecast" ), "\"time" ); if ( d )
-                //     {
-                //         uint16_t remainedTime;
-                //         bool telemetry;
-                //         uint32_t tmId;
-                //         auto s = sscanf( d,
-                //         "\"time\":%d,\"byTelemetry\":%d,\"tmId\":%d,", ( int * )
-                //         &remainedTime, ( int * ) &telemetry, ( &tmId ) ); if ( s == 3
-                //         )
-                //         {
-                //             if ( remainedTime > 5 * 60 )
-                //             {
-                //                 lastTelemetry.ticksToOutdate = 5 * 60 / 2;
-                //             }
-                //             else
-                //             {
-                //                 lastTelemetry.ticksToOutdate = remainedTime / 2 + 3 *
-                //                 60 / 2;
-                //             }
-                //             HAL_TIM_Base_Start_IT( &htim6 );
-                //             lastTelemetry.timeByShedule = RTC_Unix_Timestamp() +
-                //             remainedTime; lastTelemetry.byTelemetry   = telemetry;
-                //             lastTelemetry.tmId          = tmId;
-                //             return;
-                //         }
-                //     }
-                // }
                 do
                 {
                     ESP8266_Send( "+++" );
-                    HAL_Delay( 100 );
+                    HAL_Delay( 1000 );
                 } while ( !( ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" ) ) );
             }
             mbedtls_ssl_free( &ssl );
@@ -1215,7 +1179,7 @@ void updateLastTelemetryInfo()
             espReconnect();
     }
 }
-extern int debugVar;
+
 void aecAutoControl()
 {
     if ( !states.autoExp )
@@ -1325,6 +1289,9 @@ int main( void )
     /* Configure the system clock */
     SystemClock_Config();
 
+    /* Configure the peripherals common clocks */
+    PeriphCommonClock_Config();
+
     /* USER CODE BEGIN SysInit */
     // __HAL_RCC_D2SRAM1_CLK_ENABLE();
     // TxData_T _tData;
@@ -1397,20 +1364,7 @@ int main( void )
     HAL_Delay( 1000 );
     updateTime();
     updateLastTelemetryInfo();
-    updateLastTelemetryInfo();
-    updateLastTelemetryInfo();
-    updateLastTelemetryInfo();
-
-    if ( ESP8266_SendRequest(
-             "TCP", "moscowtransport.app", 80,
-             "GET /api/stop_v2/7fce7321-a3ac-4648-8919-3f728cc166c7 HTTP/1.1\r\n"
-             "Host: moscowtransport.app\r\n"
-             "User-Agent: ESP8266\r\n"
-             "Accept: application/json\r\n"
-             "Connection: close\r\n" ) )
-
-        HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ),
-                            WIDTH * HEIGHT / 2 );
+    HAL_DCMI_Start_DMA( &hdcmi, DCMI_MODE_CONTINUOUS, ( uint32_t ) ( &TxData.frame ), WIDTH * HEIGHT / 2 );
 
     /* USER CODE END 2 */
 
@@ -1434,6 +1388,8 @@ int main( void )
                             sprintf( name, "0:/data/img%d-%c-%d.bmp", photoNum,
                                      states.nightMode ? 'n' : 'd', TxData.avgLuminance );
                             SaveImageBMP( name, reinterpret_cast<uint8_t *>( &TxData.frame ), sizeof( TxData.frame ) );
+                            addNewRecord( photoNum, 1 );
+                            updateLastTelemetryInfo();
                             enableLed500ms();
                         }
                         states.cameraCountdown = true;
@@ -1523,10 +1479,14 @@ int main( void )
         {
             updateTime();
         }
-        // if ( !lastTelemetry.ticksToOutdate )
-        // {
-        //     updateLastTelemetryInfo();
-        // }
+        if ( !lastTelemetry.ticksToOutdate )
+        {
+            if ( states.busIsNearby )
+            {
+                addNewRecord( IncrementLastPhotoNumber(), 0 );
+            }
+            updateLastTelemetryInfo();
+        }
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -1589,7 +1549,7 @@ void SystemClock_Config( void )
     RCC_ClkInitStruct.SYSCLKDivider  = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.AHBCLKDivider  = RCC_HCLK_DIV4;
     RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV4;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
     RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
@@ -1598,6 +1558,33 @@ void SystemClock_Config( void )
         Error_Handler();
     }
     HAL_RCC_MCOConfig( RCC_MCO1, RCC_MCO1SOURCE_HSE, RCC_MCODIV_1 );
+}
+
+/**
+ * @brief Peripherals Common Clock Configuration
+ * @retval None
+ */
+void PeriphCommonClock_Config( void )
+{
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
+
+    /** Initializes the peripherals clock
+     */
+    PeriphClkInitStruct.PeriphClockSelection      = RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_USART3;
+    PeriphClkInitStruct.PLL3.PLL3M                = 2;
+    PeriphClkInitStruct.PLL3.PLL3N                = 30;
+    PeriphClkInitStruct.PLL3.PLL3P                = 2;
+    PeriphClkInitStruct.PLL3.PLL3Q                = 5;
+    PeriphClkInitStruct.PLL3.PLL3R                = 6;
+    PeriphClkInitStruct.PLL3.PLL3RGE              = RCC_PLL3VCIRANGE_3;
+    PeriphClkInitStruct.PLL3.PLL3VCOSEL           = RCC_PLL3VCOWIDE;
+    PeriphClkInitStruct.PLL3.PLL3FRACN            = 0;
+    PeriphClkInitStruct.Usart234578ClockSelection = RCC_USART234578CLKSOURCE_PLL3;
+    PeriphClkInitStruct.I2c123ClockSelection      = RCC_I2C123CLKSOURCE_PLL3;
+    if ( HAL_RCCEx_PeriphCLKConfig( &PeriphClkInitStruct ) != HAL_OK )
+    {
+        Error_Handler();
+    }
 }
 
 /**
