@@ -234,6 +234,23 @@ static void MX_TIM6_Init( void );
 static void MX_RNG_Init( void );
 /* USER CODE BEGIN PFP */
 
+void ulltoa( uint64_t value, char *buf, int radix )
+{
+    char tmp[ 65 ];
+    char *p1                 = tmp, *p2;
+    static const char xlat[] = "0123456789abcdef";
+
+    if ( radix < 2 || radix > 36 ) return;
+
+    do
+    {
+        *p1++ = xlat[ value % ( unsigned ) radix ];
+    } while ( ( value /= ( unsigned ) radix ) );
+
+    for ( p2 = buf; p1 != tmp; *p2++ = *--p1 );
+    *p2 = '\0';
+}
+
 void HAL_RTC_AlarmAEventCallback( RTC_HandleTypeDef *hrtc )
 {
     // every day at 03:00
@@ -996,27 +1013,31 @@ bool addNewRecord( uint32_t writeNum, bool isOccured )
         return 0;
     if ( !f_tell( &FatFsFile ) )
     {
-        char c[] { "id,shedule,real,telemetry,night,occured" };
+        char c[] { "id,shedule,real,telemetry,night,occured\n" };
         f_write( &FatFsFile, c, sizeof( c ), &bytes_read );
-        if ( result == FR_OK && bytes_read == sizeof( c ) )
+        if ( result != FR_OK || bytes_read != sizeof( c ) )
         {
-            return 1;
+            return 0;
         }
     }
 
-    char record[ 32 ];
-    sprintf( record, "%d,%lld,%lld,%i,%i,%i\n", writeNum, lastTelemetry.timeByShedule,
-             RTC_Unix_Timestamp(), lastTelemetry.byTelemetry, states.nightMode, isOccured );
-    f_write( &FatFsFile, record, sizeof( record ), &bytes_read );
+    char record[ 90 ];
+    char unixShedule[ 21 ];
+    ulltoa( lastTelemetry.timeByShedule, unixShedule, 10 );
+    char unixTimestamp[ 21 ];
+    ulltoa( RTC_Unix_Timestamp(), unixTimestamp, 10 );
+    sprintf( record, "%d,%s,%s,%i,%i,%i\n", writeNum, unixShedule,
+             unixTimestamp, lastTelemetry.byTelemetry, states.nightMode, isOccured );
+    f_write( &FatFsFile, record, strlen( record ), &bytes_read );
     f_sync( &FatFsFile );
     f_close( &FatFsFile );
 
-    if ( result == FR_OK && bytes_read == sizeof( record ) )
+    if ( result != FR_OK || bytes_read != sizeof( record ) )
     {
-        return 1;
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 void StartCountdown() // 5 sec
