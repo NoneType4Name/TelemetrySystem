@@ -42,19 +42,17 @@ mbedtls_entropy_context entropy;
 /* USER CODE END 2 */
 
 /* MBEDTLS init function */
-void MX_MBEDTLS_Init(void)
+void MX_MBEDTLS_Init( void )
 {
-   /**
-  */
-  mbedtls_ssl_init(&ssl);
-  mbedtls_ssl_config_init(&conf);
-  mbedtls_x509_crt_init(&cert);
-  mbedtls_ctr_drbg_init(&ctr_drbg);
-  mbedtls_entropy_init( &entropy );
-  /* USER CODE BEGIN 3 */
+    /**
+     */
+    mbedtls_ssl_config_init( &conf );
+    mbedtls_x509_crt_init( &cert );
+    mbedtls_ctr_drbg_init( &ctr_drbg );
+    mbedtls_entropy_init( &entropy );
+    /* USER CODE BEGIN 3 */
 
-  /* USER CODE END 3 */
-
+    /* USER CODE END 3 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -62,10 +60,9 @@ void MX_MBEDTLS_Init(void)
 /* USER CODE END 4 */
 
 /**
-  * @}
-  */
+ * @}
+ */
 
 /**
-  * @}
-  */
-
+ * @}
+ */

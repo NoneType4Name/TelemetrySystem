@@ -1084,11 +1084,26 @@ void updateTime()
 
 void updateLastTelemetryInfo()
 {
-    int dd;
-    while ( 1 )
+    bool recv { 0 };
+    while ( !recv )
     {
         if ( ESP8266_IsConnectedToWifi() )
         {
+            mbedtls_ssl_init( &ssl );
+            mbedtls_ssl_setup( &ssl, &conf );
+            mbedtls_ssl_set_bio(
+                &ssl, &huart3,
+                []( void *huart, const uint8_t *data, size_t len ) -> int
+                {
+                    HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 );
+                    return len;
+                },
+                []( void *huart, uint8_t *data, size_t len ) -> int
+                {
+                    return ESP8266_RecvCount( data, len );
+                },
+                NULL );
+
             if ( ( ESP8266_Send( "AT+CIPMODE=1\r\n" ) && ESP8266_Recv( "OK" ) ) &&
                  ( ESP8266_Send(
                        "AT+CIPSTART=\"TCP\",\"moscowtransport.app\",443\r\n" ) &&
@@ -1096,7 +1111,6 @@ void updateLastTelemetryInfo()
             {
                 if ( ( ESP8266_Send( "AT+CIPSEND\r\n" ) && ESP8266_Recv( ">" ) ) )
                 {
-                    mbedtls_ssl_session_reset( &ssl );
                     ESP8266_ClearRecvBuff();
                     ESP8266_StartPollingReceive();
                     mbedtls_ssl_set_hostname( &ssl, "moscowtransport.app" );
@@ -1116,7 +1130,7 @@ void updateLastTelemetryInfo()
                         ESP8266_ClearRecvBuff();
                         mbedtls_ssl_write( &ssl, ( uint8_t * ) ESP_TX_buff, strlen( ESP_TX_buff ) );
                         ESP8266_StartPollingReceive();
-                        if ( dd = mbedtls_ssl_read( &ssl, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
+                        if ( mbedtls_ssl_read( &ssl, ( uint8_t * ) ESP_RX_buff, sizeof( ESP_RX_buff ) - 1 ) )
                         {
                             auto d = strstr( strstr( ESP_RX_buff, "externalForecast" ), "\"time" );
                             if ( d )
@@ -1143,10 +1157,9 @@ void updateLastTelemetryInfo()
                                         RTC_Unix_Timestamp() + remainedTime;
                                     lastTelemetry.byTelemetry = telemetry;
                                     lastTelemetry.tmId        = tmId;
-                                    return;
+                                    recv                      = 1;
                                 }
                             }
-                            mbedtls_ssl_close_notify( &ssl );
                         }
                     }
                     ESP8266_StopPollingReceive();
@@ -1195,6 +1208,7 @@ void updateLastTelemetryInfo()
                     HAL_Delay( 100 );
                 } while ( !( ESP8266_Send( "AT+CIPCLOSE\r\n" ) && ESP8266_Recv( "OK" ) ) );
             }
+            mbedtls_ssl_free( &ssl );
             ESP8266_Send( "AT+CIPMODE=0\r\n" ) && ESP8266_Recv( "OK" );
         }
         else
@@ -1348,35 +1362,18 @@ int main( void )
     // HAL_DMA_CpltCallback );
 
     // init mbedtls
-    mbedtls_ssl_setup( &ssl, &conf );
-    mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
 
     mbedtls_ssl_config_defaults( &conf, MBEDTLS_SSL_IS_CLIENT,
                                  MBEDTLS_SSL_TRANSPORT_STREAM,
                                  MBEDTLS_SSL_PRESET_DEFAULT );
-
+    mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
     const int ciphersuites[] = {
         MBEDTLS_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
         MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
         0 };
-
     mbedtls_ssl_conf_ciphersuites( &conf, ciphersuites );
     mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_NONE );
     mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
-
-    mbedtls_ssl_set_bio(
-        &ssl, &huart3,
-        []( void *huart, const uint8_t *data, size_t len ) -> int
-        {
-            HAL_UART_Transmit( ( UART_HandleTypeDef * ) huart, data, len, 100 );
-            return len;
-        },
-        []( void *huart, uint8_t *data, size_t len ) -> int
-        {
-            return ESP8266_RecvCount( data, len );
-        },
-        NULL );
-
     // init ESP
     ESP8266_SetConfig( &huart3, ESP_PW_GPIO_Port, ESP_PW_Pin );
     ESP8266_ON();
@@ -1394,16 +1391,14 @@ int main( void )
     {
         Error_Handler();
     }
-    ESP8266_Send( "AT+CIPSSLSIZE=4096\r\n" );
-    if ( !ESP8266_Recv( "OK" ) )
-    {
-        Error_Handler();
-    }
+
     espReconnect();
-    ESP8266_ConfigureNTP(
-        1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
+    ESP8266_ConfigureNTP( 1, 3, "\"ntp1.vniiftri.ru\",\"time.google.com\",\"pool.ntp.org\"" );
     HAL_Delay( 1000 );
     updateTime();
+    updateLastTelemetryInfo();
+    updateLastTelemetryInfo();
+    updateLastTelemetryInfo();
     updateLastTelemetryInfo();
 
     if ( ESP8266_SendRequest(
